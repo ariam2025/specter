@@ -559,6 +559,9 @@
   const RAW  = `https://raw.githubusercontent.com/${REPO}/main`;
   const API  = `https://api.github.com/repos/${REPO}`;
 
+  // Always bypass CDN cache — raw.githubusercontent.com can serve stale content
+  const fetchRaw = (path) => fetch(`${RAW}/${path}?_=${Date.now()}`, { cache: 'no-store' });
+
   let allTokens = [];
   let sortKey = 'spikeRatio';
   let sortDir = -1;
@@ -570,7 +573,7 @@
 
   async function loadState() {
     try {
-      const r = await fetch(`${RAW}/memory/state.json`);
+      const r = await fetchRaw('memory/state.json');
       if (!r.ok) return;
       const s = await r.json();
       document.getElementById('m-cycles').textContent = s.cycle ?? '0';
@@ -584,7 +587,7 @@
 
   async function loadTokens() {
     try {
-      const r = await fetch(`${RAW}/data/tokens.json`);
+      const r = await fetchRaw('data/tokens.json');
       if (!r.ok) { renderTokenTable([]); return; }
       const data = await r.json();
       allTokens = data.tokens || [];
@@ -596,7 +599,7 @@
 
   async function loadSpikes() {
     try {
-      const r = await fetch(`${RAW}/data/spikes.json`);
+      const r = await fetchRaw('data/spikes.json');
       if (!r.ok) { renderSpikeTable([]); return; }
       const data = await r.json();
       const spikes = data.spikes || [];
@@ -616,7 +619,7 @@
 
   async function loadLog() {
     try {
-      const stateR = await fetch(`${RAW}/memory/state.json`);
+      const stateR = await fetchRaw('memory/state.json');
       if (!stateR.ok) { renderLog([]); return; }
       const state = await stateR.json();
       const cycle = state.cycle || 0;
@@ -624,7 +627,7 @@
 
       // Try to fetch latest proof
       const date = new Date().toISOString().split('T')[0];
-      const proofR = await fetch(`${RAW}/proofs/${date}/cycle-${cycle - 1}.json`);
+      const proofR = await fetchRaw(`proofs/${date}/cycle-${cycle - 1}.json`);
       if (!proofR.ok) { renderLog([]); return; }
       const proof = await proofR.json();
       renderLog(proof);
@@ -634,9 +637,9 @@
   async function loadMemory() {
     try {
       const [selfR, focusR, learnR] = await Promise.all([
-        fetch(`${RAW}/memory/self.md`),
-        fetch(`${RAW}/memory/focus.md`),
-        fetch(`${RAW}/memory/learnings.md`),
+        fetchRaw('memory/self.md'),
+        fetchRaw('memory/focus.md'),
+        fetchRaw('memory/learnings.md'),
       ]);
       const self    = selfR.ok    ? await selfR.text()    : '';
       const focus   = focusR.ok   ? await focusR.text()   : '';
