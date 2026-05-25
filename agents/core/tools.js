@@ -126,4 +126,24 @@ export const tools = [
       required: ['issue_number']
     }
   },
+  {
+    name: 'propose_trade',
+    description: 'Create a trade proposal that requires human approval before execution. Use this when you detect a high-confidence signal worth trading.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        symbol:          { type: 'string', description: 'Token symbol, e.g. GHOST' },
+        token_address:   { type: 'string', description: 'Contract address on Base' },
+        dex:             { type: 'string', description: 'DEX where the token trades' },
+        spike_ratio:     { type: 'number', description: 'Spike ratio detected' },
+        vol_1h:          { type: 'number', description: '1h volume in USD' },
+        price_usd:       { type: 'number', description: 'Current price' },
+        suggested_usd:   { type: 'number', description: 'Suggested trade size in USD' },
+        confidence:      { type: 'string', enum: ['HIGH', 'MEDIUM', 'LOW'], description: 'Signal confidence level' },
+        analysis:        { type: 'string', description: 'Full analysis reasoning' },
+        risks:           { type: 'string', description: 'Key risks for this trade' }
+      },
+      required: ['symbol', 'spike_ratio', 'vol_1h', 'suggested_usd', 'confidence', 'analysis', 'risks']
+    }
+  },
 ];

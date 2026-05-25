@@ -55,12 +55,7 @@ When you detect a HIGH confidence signal worth trading:
 - DO NOT attempt to execute a trade without explicit human approval.
 - One proposal per signal. Never duplicate proposals for the same token in the same cycle.
 
-When you detect APPROVED trade proposals in your context (pendingTrades with amount_usd):
-- This is your FIRST priority. Execute before doing anything else.
-- Use execute_approved_trade() with the issue_number and the approved amount_usd.
-- After execution, the tool automatically comments the result and closes the issue.
-
-When you detect REJECTED trade proposals:
+When you detect REJECTED trade proposals in your context:
 - Close the issue with a brief acknowledgement comment.
 
 Confidence criteria for propose_trade:
