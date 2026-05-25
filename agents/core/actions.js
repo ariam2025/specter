@@ -164,6 +164,123 @@ export async function executeAction(name, input) {
       }
     }
 
+    case 'propose_trade': {
+      if (!GITHUB_TOKEN) return { error: 'No GITHUB_TOKEN' };
+      try {
+        const conf = input.confidence || 'MEDIUM';
+        const confEmoji = { HIGH: '🔴', MEDIUM: '🟡', LOW: '⚪' }[conf] || '🟡';
+        const body = [
+          `## SPECTER Trade Proposal`,
+          ``,
+          `| Field | Value |`,
+          `|-------|-------|`,
+          `| **Token** | $${input.symbol}${input.token_address ? ` (\`${input.token_address}\`)` : ''} |`,
+          `| **DEX** | ${input.dex || 'unknown'} |`,
+          `| **Spike Ratio** | ${input.spike_ratio}x |`,
+          `| **Vol 1H** | $${Number(input.vol_1h).toLocaleString()} |`,
+          `| **Price** | ${input.price_usd ? `$${input.price_usd}` : 'N/A'} |`,
+          `| **Suggested Size** | $${input.suggested_usd} |`,
+          `| **Confidence** | ${confEmoji} ${conf} |`,
+          ``,
+          `### Analysis`,
+          input.analysis,
+          ``,
+          `### Risks`,
+          input.risks,
+          ``,
+          `---`,
+          `### How to respond`,
+          `- **Approve:** Comment \`APPROVE $<amount>\` (e.g. \`APPROVE $50\`) to execute`,
+          `- **Reject:** Comment \`REJECT\` to dismiss this proposal`,
+          ``,
+          `*Autonomous proposal by SPECTER // ${new Date().toISOString()}*`,
+        ].join('\n');
+
+        const res = await fetch(`https://api.github.com/repos/${REPO}/issues`, {
+          method: 'POST',
+          headers: {
+            Authorization: `token ${GITHUB_TOKEN}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/vnd.github.v3+json',
+          },
+          body: JSON.stringify({
+            title:  `${confEmoji} TRADE PROPOSAL: $${input.symbol} — ${input.spike_ratio}x spike [${conf}]`,
+            body,
+            labels: ['trade-proposal'],
+          }),
+        });
+        const data = await res.json();
+        return { ok: true, number: data.number, url: data.html_url };
+      } catch (e) {
+        return { error: e.message };
+      }
+    }
+
+    case 'execute_approved_trade': {
+      const BANKR_KEY = process.env.BANKR_API_KEY;
+      if (!BANKR_KEY) return { error: 'No BANKR_API_KEY — cannot execute trade' };
+      if (!GITHUB_TOKEN) return { error: 'No GITHUB_TOKEN' };
+      try {
+        const prompt = `Buy $${input.amount_usd} worth of ${input.symbol} on Base Network${input.dex ? ` using ${input.dex}` : ''}. Confirm the swap and report the transaction hash.`;
+
+        // Submit to Bankr
+        const submitRes = await fetch('https://api.bankr.bot/agent/prompt', {
+          method: 'POST',
+          headers: {
+            'x-api-key': BANKR_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt }),
+          signal: AbortSignal.timeout(15000),
+        });
+        const submitData = await submitRes.json();
+        const jobId = submitData.jobId || submitData.id;
+        if (!jobId) {
+          return { error: `Bankr submit failed: ${JSON.stringify(submitData)}` };
+        }
+
+        // Poll until done (max 90s)
+        let result = null;
+        const deadline = Date.now() + 90_000;
+        while (Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 3000));
+          const pollRes = await fetch(`https://api.bankr.bot/agent/job/${jobId}`, {
+            headers: { 'x-api-key': BANKR_KEY },
+            signal: AbortSignal.timeout(10000),
+          });
+          const pollData = await pollRes.json();
+          const status = pollData.status?.toLowerCase();
+          if (status === 'completed' || status === 'done' || status === 'success') {
+            result = pollData;
+            break;
+          }
+          if (status === 'failed' || status === 'error') {
+            result = pollData;
+            break;
+          }
+        }
+
+        const success = result?.status?.toLowerCase() === 'completed'
+          || result?.status?.toLowerCase() === 'done'
+          || result?.status?.toLowerCase() === 'success';
+
+        const comment = success
+          ? `## ✅ Trade Executed\n\n**Job:** \`${jobId}\`\n**Result:** ${result?.output || result?.result || JSON.stringify(result)}\n\n*Executed by SPECTER // ${new Date().toISOString()}*`
+          : `## ❌ Trade Failed\n\n**Job:** \`${jobId}\`\n**Status:** ${result?.status || 'timeout'}\n**Details:** ${result?.output || result?.error || 'No response from Bankr within 90s'}\n\n*SPECTER // ${new Date().toISOString()}*`;
+
+        await executeAction('comment_issue', { issue_number: input.issue_number, body: comment });
+        await executeAction('close_issue', { issue_number: input.issue_number });
+
+        return { ok: success, jobId, status: result?.status, output: result?.output };
+      } catch (e) {
+        await executeAction('comment_issue', {
+          issue_number: input.issue_number,
+          body: `## ❌ Execution Error\n\n${e.message}\n\n*SPECTER // ${new Date().toISOString()}*`,
+        });
+        return { error: e.message };
+      }
+    }
+
     default:
       return { error: `Unknown tool: ${name}` };
   }

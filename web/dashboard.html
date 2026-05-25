@@ -198,6 +198,31 @@
     .tier-req   { font-size: 10px; color: var(--g4); margin-bottom: 6px; }
     .tier-perks { font-size: 10px; color: var(--g3); line-height: 1.8; }
 
+    /* TRADE PROPOSALS */
+    .trade-list { display: flex; flex-direction: column; gap: 8px; }
+    .trade-card {
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      font-size: 11px;
+      position: relative;
+    }
+    .trade-card.pending { border-color: var(--amber); }
+    .trade-card.approved { border-color: #00ff41; }
+    .trade-card.executed { border-color: var(--g4); }
+    .trade-card.rejected { border-color: var(--g4); opacity: 0.5; }
+    .trade-status {
+      display: inline-block; font-size: 10px; letter-spacing: 1px;
+      padding: 1px 6px; margin-bottom: 6px;
+    }
+    .trade-status.pending  { color: var(--amber); border: 1px solid var(--amber); animation: pulse 1.5s infinite; }
+    .trade-status.approved { color: #00ff41; border: 1px solid #00ff41; }
+    .trade-status.executed { color: var(--g4); border: 1px solid var(--g4); }
+    .trade-status.rejected { color: var(--g4); border: 1px solid var(--g4); }
+    .trade-sym  { font-size: 14px; color: var(--g1); margin-right: 8px; }
+    .trade-meta { color: var(--g3); margin-top: 4px; line-height: 1.8; }
+    .trade-link { float: right; color: var(--g4); text-decoration: none; font-size: 10px; }
+    .trade-link:hover { color: var(--g2); }
+
     /* GATE */
     .gate {
       position: relative;
@@ -233,6 +258,7 @@
       <nav class="nav">
         <a href="#tokens" class="active">TOKENS</a>
         <a href="#spikes">SPIKES</a>
+        <a href="#trades">TRADES</a>
         <a href="#agent">AGENT LOG</a>
         <a href="#memory">MEMORY</a>
       </nav>
@@ -331,7 +357,7 @@
         <div class="panel-body" id="agent-log">
           <div class="loading">LOADING PROOFS_</div>
         </div>
-        <div class="gate-overlay" id="gate-agent">
+        <div class="gate-overlay" id="gate-agent" style="display:none">
           <div class="gate-icon">▓</div>
           <div class="gate-msg">
             <span class="gate-req">// HUNTER</span> ACCESS REQUIRED<br>
@@ -347,7 +373,7 @@
         <div class="panel-body" id="memory-panel">
           <div class="loading">READING MEMORY_</div>
         </div>
-        <div class="gate-overlay" id="gate-memory">
+        <div class="gate-overlay" id="gate-memory" style="display:none">
           <div class="gate-icon">▓</div>
           <div class="gate-msg">
             <span class="gate-req">// HUNTER</span> ACCESS REQUIRED<br>
@@ -357,6 +383,17 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- TRADE PROPOSALS -->
+  <div class="panel" id="trades">
+    <div class="panel-head">
+      ⚡ TRADE PROPOSALS <span id="trade-count"></span>
+      <span class="dim" style="font-size:10px;">HUMAN-IN-THE-LOOP // APPROVE ON GITHUB</span>
+    </div>
+    <div class="panel-body">
+      <div id="trade-list"><div class="loading">SCANNING PROPOSALS_</div></div>
     </div>
   </div>
 
@@ -377,7 +414,7 @@
   let sortDir = -1;
 
   async function loadAll() {
-    await Promise.allSettled([loadState(), loadTokens(), loadSpikes(), loadLog(), loadMemory()]);
+    await Promise.allSettled([loadState(), loadTokens(), loadSpikes(), loadTrades(), loadLog(), loadMemory()]);
   }
 
   async function loadState() {
@@ -468,6 +505,89 @@
           <div class="memory-content">${learn.trim() ? esc(learn.slice(0, 400)) : '<span class="dim">EMPTY — FIRST CYCLE PENDING</span>'}</div>
         </div>`;
     } catch {}
+  }
+
+  async function loadTrades() {
+    try {
+      const res = await fetch(`${API}/issues?labels=trade-proposal&state=all&per_page=20`, {
+        headers: { Accept: 'application/vnd.github.v3+json' }
+      });
+      if (!res.ok) { renderTrades([]); return; }
+      const issues = await res.json();
+      if (!Array.isArray(issues)) { renderTrades([]); return; }
+
+      const pending = issues.filter(i => i.state === 'open').length;
+      document.getElementById('trade-count').textContent = pending ? `[${pending} PENDING]` : '';
+
+      // For open issues, check comments to detect APPROVE/REJECT
+      const trades = await Promise.all(issues.slice(0, 10).map(async issue => {
+        const trade = parseTradeIssue(issue);
+        if (issue.state === 'open') {
+          try {
+            const cr = await fetch(issue.comments_url, {
+              headers: { Accept: 'application/vnd.github.v3+json' }
+            });
+            const comments = cr.ok ? await cr.json() : [];
+            const approval = (comments || []).find(c => /^APPROVE\s+\$?\d+/i.test((c.body||'').trim()));
+            const rejection = (comments || []).find(c => /^REJECT/i.test((c.body||'').trim()));
+            if (approval) trade.status = 'approved';
+            else if (rejection) trade.status = 'rejected';
+            else trade.status = 'pending';
+          } catch { trade.status = 'pending'; }
+        } else {
+          trade.status = 'executed';
+        }
+        return trade;
+      }));
+
+      renderTrades(trades);
+    } catch { renderTrades([]); }
+  }
+
+  function parseTradeIssue(issue) {
+    const body = issue.body || '';
+    const get = (label) => {
+      const m = body.match(new RegExp(`\\|\\s*\\*\\*${label}\\*\\*\\s*\\|([^|]+)\\|`));
+      return m ? m[1].trim() : null;
+    };
+    const confMatch = issue.title?.match(/\[(HIGH|MEDIUM|LOW)\]/);
+    return {
+      number: issue.number,
+      url: issue.html_url,
+      symbol: get('Token')?.replace(/^\$/, '').split(' ')[0] || '???',
+      spike_ratio: parseFloat(get('Spike Ratio')) || null,
+      suggested_usd: parseFloat((get('Suggested Size') || '').replace(/[^0-9.]/g, '')) || null,
+      confidence: confMatch ? confMatch[1] : null,
+      created: issue.created_at,
+      status: issue.state === 'open' ? 'pending' : 'executed',
+    };
+  }
+
+  function renderTrades(trades) {
+    const el = document.getElementById('trade-list');
+    if (!trades.length) {
+      el.innerHTML = '<div class="dim" style="padding:10px;font-size:11px;">NO TRADE PROPOSALS YET — AGENT HAS NOT FLAGGED ANY SIGNALS</div>';
+      return;
+    }
+    const confColor = { HIGH: 'var(--red)', MEDIUM: 'var(--amber)', LOW: 'var(--g4)' };
+    el.innerHTML = `<div class="trade-list">${trades.map(t => `
+      <div class="trade-card ${t.status}">
+        <a class="trade-link" href="${t.url}" target="_blank">→ GITHUB #${t.number}</a>
+        <div>
+          <span class="trade-status ${t.status}">${t.status.toUpperCase()}</span>
+          ${t.confidence ? `<span style="font-size:10px;color:${confColor[t.confidence]||'var(--g4)'};">${t.confidence}</span>` : ''}
+        </div>
+        <div>
+          <span class="trade-sym">$${t.symbol}</span>
+          ${t.spike_ratio ? `<span class="amber">${t.spike_ratio}x spike</span>` : ''}
+        </div>
+        <div class="trade-meta">
+          ${t.suggested_usd ? `Suggested: <span style="color:var(--g2)">$${t.suggested_usd}</span>` : ''}
+          ${t.created ? `&nbsp;·&nbsp; ${timeAgo(new Date(t.created))}` : ''}
+        </div>
+        ${t.status === 'pending' ? `<div style="margin-top:6px;font-size:10px;color:var(--g4);">Comment <span style="color:var(--amber)">APPROVE $50</span> or <span style="color:var(--g4)">REJECT</span> on GitHub</div>` : ''}
+      </div>`).join('')}
+    </div>`;
   }
 
   function renderTokenTable(tokens) {
@@ -631,7 +751,7 @@
     });
 
     // Gates — HUNTER (10k) unlocks agent log + memory
-    const hunterAccess = SpectorWallet.hasAccess('HUNTER');
+    const hunterAccess = true; // TEMP: open access for review
     document.getElementById('gate-agent').style.display  = hunterAccess ? 'none' : 'flex';
     document.getElementById('gate-memory').style.display = hunterAccess ? 'none' : 'flex';
 

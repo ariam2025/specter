@@ -8,6 +8,7 @@ export async function gatherContext(spikes = []) {
   const state  = readState();
   const issues = await fetchIssues();
   const commits = await fetchCommits();
+  const pendingTrades = await fetchPendingTradeApprovals(issues);
 
   const marketSummary = buildMarketSummary(spikes);
 
@@ -17,9 +18,10 @@ export async function gatherContext(spikes = []) {
     issues,
     commits,
     spikes,
+    pendingTrades,
     marketSummary,
     now: new Date().toISOString(),
-    initialMessage: buildInitialMessage(state, spikes, issues),
+    initialMessage: buildInitialMessage(state, spikes, issues, pendingTrades),
   };
 }
 
@@ -81,6 +83,51 @@ async function fetchIssues() {
   }
 }
 
+async function fetchPendingTradeApprovals(issues) {
+  if (!GITHUB_TOKEN) return [];
+  const tradeIssues = issues.filter(i => i.labels.includes('trade-proposal'));
+  if (!tradeIssues.length) return [];
+
+  const approvals = [];
+  for (const issue of tradeIssues) {
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${REPO}/issues/${issue.number}/comments?per_page=50`,
+        { headers: { Authorization: `token ${GITHUB_TOKEN}`, Accept: 'application/vnd.github.v3+json' } }
+      );
+      const comments = await res.json();
+      if (!Array.isArray(comments)) continue;
+
+      for (const c of comments) {
+        const body = (c.body || '').trim().toUpperCase();
+        const approveMatch = body.match(/^APPROVE\s+\$?(\d+(?:\.\d+)?)/);
+        if (approveMatch) {
+          approvals.push({
+            issue_number: issue.number,
+            title: issue.title,
+            amount_usd: parseFloat(approveMatch[1]),
+            approved_by: c.user?.login,
+            approved_at: c.created_at,
+          });
+          break;
+        }
+        if (body.startsWith('REJECT')) {
+          approvals.push({
+            issue_number: issue.number,
+            title: issue.title,
+            rejected: true,
+            rejected_by: c.user?.login,
+          });
+          break;
+        }
+      }
+    } catch {
+      // skip
+    }
+  }
+  return approvals;
+}
+
 async function fetchCommits() {
   if (!GITHUB_TOKEN) return [];
   try {
@@ -109,10 +156,20 @@ function buildMarketSummary(spikes) {
   return lines.join('\n');
 }
 
-function buildInitialMessage(state, spikes, issues) {
+function buildInitialMessage(state, spikes, issues, pendingTrades = []) {
   const parts = [`Cycle #${state.cycle} starting.`];
   if (spikes.length) parts.push(`Watcher detected ${spikes.length} spike(s) on Base Network.`);
   else parts.push('No active spikes detected this cycle.');
+
+  const approved = pendingTrades.filter(t => !t.rejected);
+  const rejected = pendingTrades.filter(t => t.rejected);
+  if (approved.length) {
+    parts.push(`PRIORITY: ${approved.length} trade proposal(s) have been APPROVED and are waiting for execution.`);
+  }
+  if (rejected.length) {
+    parts.push(`${rejected.length} trade proposal(s) were REJECTED — close those issues.`);
+  }
+
   if (issues.length) parts.push(`${issues.length} open issue(s) need attention.`);
   parts.push('Begin your cycle: think, analyze, journal, ride on.');
   return parts.join(' ');
