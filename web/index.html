@@ -5,16 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SPECTER // BASE NETWORK INTELLIGENCE</title>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
+  <script src="wallet.js"></script>
   <style>
     :root {
-      --bg:     #030503;
-      --g1:     #00ff41;
-      --g2:     #00cc33;
-      --g3:     #008822;
-      --g4:     #003311;
-      --amber:  #ffcc00;
-      --red:    #ff2200;
-      --border: #004d14;
+      --bg:     #1e202c;
+      --g1:     #ffffff;
+      --g2:     #c4b0ff;
+      --g3:     #a68fff;
+      --g4:     #7c66cc;
+      --amber:  #e0c8ff;
+      --red:    #ff6699;
+      --border: #60519b;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -114,6 +116,31 @@
     }
     header .brand { color: var(--g1); font-size: 15px; letter-spacing: 3px; }
     header .signal { color: var(--amber); }
+    /* WALLET */
+    .wallet-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--g3);
+      font-family: inherit;
+      font-size: 11px;
+      padding: 3px 10px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: all .2s;
+    }
+    .wallet-btn:hover { border-color: var(--g2); color: var(--g1); }
+    .wallet-btn.connected { border-color: var(--g2); color: var(--g2); }
+    .wallet-btn.connected:hover { border-color: var(--red); color: var(--red); }
+    .tier-badge {
+      display: inline-block;
+      border: 1px solid var(--g2);
+      color: var(--g2);
+      font-size: 10px;
+      padding: 2px 7px;
+      letter-spacing: 1px;
+      margin-left: 6px;
+    }
+
     .progress-bar {
       display: inline-block;
       width: 80px; height: 8px;
@@ -368,6 +395,10 @@
     <span class="dim">SCAN <span class="progress-bar" style="--pct:97%"></span> <span id="h-pct">97%</span></span>
     <span class="dim">STATUS: <span class="glow-sm" id="h-status">ONLINE</span></span>
     <span id="data-ts"></span>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="tier-badge" style="display:none;" class="tier-badge"></span>
+      <button class="wallet-btn" id="wallet-btn" onclick="walletAction()">CONNECT WALLET</button>
+    </div>
   </header>
 
   <main>
@@ -663,6 +694,30 @@
   }
 
   runBoot();
+
+  // WALLET
+  function walletAction() {
+    const s = SpectorWallet.getState();
+    if (s.connected) SpectorWallet.disconnect();
+    else SpectorWallet.connect();
+  }
+
+  SpectorWallet.onChange(function(s) {
+    const btn   = document.getElementById('wallet-btn');
+    const badge = document.getElementById('tier-badge');
+    if (s.connected) {
+      btn.textContent = s.address.slice(0,6) + '...' + s.address.slice(-4);
+      btn.classList.add('connected');
+      badge.style.display    = 'inline-block';
+      badge.textContent      = s.tier.label;
+      badge.style.color      = s.tier.color;
+      badge.style.borderColor = s.tier.color;
+    } else {
+      btn.textContent = 'CONNECT WALLET';
+      btn.classList.remove('connected');
+      badge.style.display = 'none';
+    }
+  });
 </script>
 
 </body>

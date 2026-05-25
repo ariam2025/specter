@@ -5,16 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SPECTER // INTELLIGENCE DASHBOARD</title>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
+  <script src="wallet.js"></script>
   <style>
     :root {
-      --bg:     #030503;
-      --g1:     #00ff41;
-      --g2:     #00cc33;
-      --g3:     #008822;
-      --g4:     #003311;
-      --amber:  #ffcc00;
-      --red:    #ff2200;
-      --border: #004d14;
+      --bg:     #1e202c;
+      --g1:     #ffffff;
+      --g2:     #c4b0ff;
+      --g3:     #a68fff;
+      --g4:     #7c66cc;
+      --amber:  #e0c8ff;
+      --red:    #ff6699;
+      --border: #60519b;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
@@ -156,6 +158,68 @@
       .two-col { grid-template-columns: 1fr; }
       .metrics { grid-template-columns: repeat(2,1fr); }
     }
+
+    /* WALLET */
+    .wallet-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--g3); font-family: inherit;
+      font-size: 11px; padding: 4px 12px;
+      cursor: pointer; letter-spacing: 1px;
+      transition: all .2s;
+    }
+    .wallet-btn:hover { border-color: var(--g2); color: var(--g1); }
+    .wallet-btn.connected { border-color: var(--g2); color: var(--g2); }
+    .wallet-btn.connected:hover { border-color: var(--red); color: var(--red); }
+    .tier-badge {
+      font-size: 10px; padding: 3px 8px;
+      border: 1px solid; letter-spacing: 1px;
+    }
+
+    /* TIER PANEL */
+    .tier-panel {
+      border: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex; gap: 0; flex-wrap: wrap;
+    }
+    .tier-item {
+      flex: 1; min-width: 140px;
+      padding: 10px 14px;
+      border-right: 1px solid var(--border);
+      position: relative;
+    }
+    .tier-item:last-child { border-right: none; }
+    .tier-item.active::before {
+      content: '▸';
+      position: absolute; left: 4px; top: 10px;
+      color: var(--g2); font-size: 10px;
+    }
+    .tier-name  { font-size: 13px; letter-spacing: 2px; margin-bottom: 3px; }
+    .tier-req   { font-size: 10px; color: var(--g4); margin-bottom: 6px; }
+    .tier-perks { font-size: 10px; color: var(--g3); line-height: 1.8; }
+
+    /* GATE */
+    .gate {
+      position: relative;
+    }
+    .gate-overlay {
+      position: absolute; inset: 0;
+      background: rgba(30,32,44,0.88);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 10px; z-index: 10;
+      backdrop-filter: blur(2px);
+    }
+    .gate-overlay .gate-icon { font-size: 22px; color: var(--g4); }
+    .gate-overlay .gate-msg  { font-size: 11px; color: var(--g3); letter-spacing: 1px; text-align: center; line-height: 1.9; }
+    .gate-overlay .gate-req  { color: var(--g2); font-size: 12px; letter-spacing: 2px; }
+    .gate-overlay .gate-connect {
+      border: 1px solid var(--g2); color: var(--g2);
+      background: transparent; font-family: inherit;
+      font-size: 11px; padding: 5px 14px; cursor: pointer;
+      letter-spacing: 1px; margin-top: 4px;
+    }
+    .gate-overlay .gate-connect:hover { background: var(--g4); }
   </style>
 </head>
 <body>
@@ -173,13 +237,39 @@
         <a href="#memory">MEMORY</a>
       </nav>
     </div>
-    <div class="header-right">
-      CHAIN: <span>BASE (8453)</span> &nbsp;|&nbsp;
-      CYCLE: <span id="hdr-cycle">———</span> &nbsp;|&nbsp;
-      LAST: <span id="hdr-last">———</span>
-      <button class="refresh-btn" onclick="loadAll()" style="margin-left:12px;">↺ REFRESH</button>
+    <div class="header-right" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span>CHAIN: <span>BASE (8453)</span></span>
+      <span>CYCLE: <span id="hdr-cycle">———</span></span>
+      <span>LAST: <span id="hdr-last">———</span></span>
+      <button class="refresh-btn" onclick="loadAll()">↺ REFRESH</button>
+      <span id="tier-badge" class="tier-badge" style="display:none;"></span>
+      <button class="wallet-btn" id="wallet-btn" onclick="walletAction()">CONNECT WALLET</button>
     </div>
   </header>
+
+  <!-- TIER PANEL -->
+  <div class="tier-panel" id="tier-panel">
+    <div class="tier-item" id="tier-free">
+      <div class="tier-name dim">// FREE</div>
+      <div class="tier-req">0 $SPECTER</div>
+      <div class="tier-perks">Public dashboard<br>Delayed data</div>
+    </div>
+    <div class="tier-item" id="tier-scout">
+      <div class="tier-name" style="color:#a68fff">// SCOUT</div>
+      <div class="tier-req">1,000 $SPECTER</div>
+      <div class="tier-perks">Real-time signals<br>Spike alerts</div>
+    </div>
+    <div class="tier-item" id="tier-hunter">
+      <div class="tier-name" style="color:#c4b0ff">// HUNTER</div>
+      <div class="tier-req">10,000 $SPECTER</div>
+      <div class="tier-perks">Agent log access<br>Memory viewer</div>
+    </div>
+    <div class="tier-item" id="tier-phantom">
+      <div class="tier-name" style="color:#ffffff">// PHANTOM</div>
+      <div class="tier-req">100,000 $SPECTER</div>
+      <div class="tier-perks">Raw proof access<br>API integration</div>
+    </div>
+  </div>
 
   <!-- METRICS -->
   <div class="metrics">
@@ -236,18 +326,34 @@
     <div style="display:flex;flex-direction:column;gap:8px;">
 
       <!-- AGENT LOG -->
-      <div class="panel" id="agent">
+      <div class="panel gate" id="agent">
         <div class="panel-head">AGENT LOG <span id="log-cycle"></span></div>
         <div class="panel-body" id="agent-log">
           <div class="loading">LOADING PROOFS_</div>
         </div>
+        <div class="gate-overlay" id="gate-agent">
+          <div class="gate-icon">▓</div>
+          <div class="gate-msg">
+            <span class="gate-req">// HUNTER</span> ACCESS REQUIRED<br>
+            HOLD 10,000 $SPECTER TO UNLOCK
+          </div>
+          <button class="gate-connect" onclick="walletAction()">CONNECT WALLET</button>
+        </div>
       </div>
 
       <!-- MEMORY -->
-      <div class="panel" id="memory">
+      <div class="panel gate" id="memory">
         <div class="panel-head">AGENT MEMORY</div>
         <div class="panel-body" id="memory-panel">
           <div class="loading">READING MEMORY_</div>
+        </div>
+        <div class="gate-overlay" id="gate-memory">
+          <div class="gate-icon">▓</div>
+          <div class="gate-msg">
+            <span class="gate-req">// HUNTER</span> ACCESS REQUIRED<br>
+            HOLD 10,000 $SPECTER TO UNLOCK
+          </div>
+          <button class="gate-connect" onclick="walletAction()">CONNECT WALLET</button>
         </div>
       </div>
 
@@ -491,6 +597,55 @@
 
   loadAll();
   setInterval(loadAll, 5 * 60 * 1000);
+
+  // ── WALLET ──────────────────────────────────────
+  function walletAction() {
+    const s = SpectorWallet.getState();
+    if (s.connected) SpectorWallet.disconnect();
+    else SpectorWallet.connect();
+  }
+
+  function applyTier(s) {
+    const btn   = document.getElementById('wallet-btn');
+    const badge = document.getElementById('tier-badge');
+
+    // Header button
+    if (s.connected) {
+      btn.textContent = s.address.slice(0,6) + '...' + s.address.slice(-4);
+      btn.classList.add('connected');
+      badge.style.display     = 'inline-block';
+      badge.textContent       = s.tier.label;
+      badge.style.color       = s.tier.color;
+      badge.style.borderColor = s.tier.color;
+    } else {
+      btn.textContent = 'CONNECT WALLET';
+      btn.classList.remove('connected');
+      badge.style.display = 'none';
+    }
+
+    // Highlight active tier in panel
+    ['free','scout','hunter','phantom'].forEach(t => {
+      const el = document.getElementById('tier-' + t);
+      if (!el) return;
+      el.classList.toggle('active', t.toUpperCase() === s.tier.name);
+    });
+
+    // Gates — HUNTER (10k) unlocks agent log + memory
+    const hunterAccess = SpectorWallet.hasAccess('HUNTER');
+    document.getElementById('gate-agent').style.display  = hunterAccess ? 'none' : 'flex';
+    document.getElementById('gate-memory').style.display = hunterAccess ? 'none' : 'flex';
+
+    // If just unlocked, load the data
+    if (hunterAccess) {
+      loadLog();
+      loadMemory();
+    }
+  }
+
+  SpectorWallet.onChange(applyTier);
+
+  // Apply FREE tier state on load
+  applyTier(SpectorWallet.getState());
 </script>
 </body>
 </html>
