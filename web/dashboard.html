@@ -223,6 +223,25 @@
     .trade-link { float: right; color: var(--g4); text-decoration: none; font-size: 10px; }
     .trade-link:hover { color: var(--g2); }
 
+    /* POSITIONS */
+    .pos-table { width:100%; border-collapse:collapse; font-size:11px; }
+    .pos-table th { text-align:left; color:var(--g3); padding:4px 8px; border-bottom:1px solid var(--border); letter-spacing:1px; font-size:10px; }
+    .pos-table td { padding:7px 8px; border-bottom:1px dotted var(--g4); vertical-align:middle; }
+    .pos-table tr:last-child td { border:none; }
+    .pos-open td { opacity:1; }
+    .pos-closed td { opacity:.38; }
+    .pnl-pos { color:#00ff41; }
+    .pnl-neg { color:var(--red); }
+    .pnl-big { animation:pulse .8s infinite; }
+    .sell-btn {
+      border:1px solid var(--border); background:transparent;
+      color:var(--g3); font-family:inherit; font-size:10px;
+      padding:3px 10px; cursor:pointer; letter-spacing:1px;
+    }
+    .sell-btn:hover { border-color:var(--amber); color:var(--amber); }
+    .sold-tag { color:var(--g4); font-size:10px; letter-spacing:1px; }
+    .live-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#00ff41; margin-right:5px; animation:pulse .8s infinite; }
+
     /* MODALS */
     .modal-overlay {
       display: none; position: fixed; inset: 0;
@@ -304,6 +323,26 @@
   </style>
 </head>
 <body>
+<!-- SELL MODAL -->
+<div class="modal-overlay" id="sell-modal">
+  <div class="modal-box">
+    <div class="modal-title" style="color:var(--amber);">💰 SELL POSITION</div>
+    <div id="sell-detail-rows" style="margin-bottom:14px;"></div>
+    <div class="modal-warn">
+      Selling full token balance. You will receive WETH on Base.<br>
+      Two MetaMask steps: approve token + execute swap.
+    </div>
+    <div class="swap-status" id="sell-status"></div>
+    <div class="modal-row">
+      <button class="btn-primary" id="sell-confirm-btn" onclick="confirmSell()" style="background:var(--amber);color:var(--bg);">SELL ALL VIA METAMASK</button>
+      <button class="btn-secondary" onclick="closeModal('sell-modal')">CANCEL</button>
+    </div>
+    <div id="sell-scan-link" style="display:none;margin-top:10px;text-align:center;font-size:10px;">
+      <a id="sell-scan-a" href="#" target="_blank" style="color:#00ff41;">✓ View transaction on BaseScan →</a>
+    </div>
+  </div>
+</div>
+
 <!-- SETTINGS MODAL -->
 <div class="modal-overlay" id="settings-modal">
   <div class="modal-box">
@@ -356,6 +395,7 @@
       <nav class="nav">
         <a href="#tokens" class="active">TOKENS</a>
         <a href="#spikes">SPIKES</a>
+        <a href="#positions">POSITIONS</a>
         <a href="#trades">TRADES</a>
         <a href="#agent">AGENT LOG</a>
         <a href="#memory">MEMORY</a>
@@ -485,6 +525,17 @@
     </div>
   </div>
 
+  <!-- POSITIONS -->
+  <div class="panel" id="positions">
+    <div class="panel-head">
+      <span><span class="live-dot"></span>OPEN POSITIONS <span id="positions-count"></span></span>
+      <span class="dim" style="font-size:10px;" id="positions-updated"></span>
+    </div>
+    <div class="panel-body" style="overflow-x:auto;">
+      <div id="positions-table"><div class="dim" style="padding:8px;font-size:11px;">NO OPEN POSITIONS — APPROVE A TRADE PROPOSAL TO START</div></div>
+    </div>
+  </div>
+
   <!-- TRADE PROPOSALS -->
   <div class="panel" id="trades">
     <div class="panel-head">
@@ -514,6 +565,7 @@
 
   async function loadAll() {
     await Promise.allSettled([loadState(), loadTokens(), loadSpikes(), loadTrades(), loadLog(), loadMemory()]);
+    loadPositions(); // positions are local + DexScreener, run separately
   }
 
   async function loadState() {
@@ -880,6 +932,244 @@
   SpectorWallet.onChange(applyTier);
   applyTier(SpectorWallet.getState());
 
+  // ── POSITIONS ────────────────────────────────────
+  const POSITIONS_KEY = 'specter_positions';
+  const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+  const ERC20_ABI = [
+    'function balanceOf(address owner) view returns (uint256)',
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function approve(address spender, uint256 amount) returns (bool)',
+  ];
+  let pendingSell = null;
+
+  function getPositions() {
+    try { return JSON.parse(localStorage.getItem(POSITIONS_KEY) || '[]'); } catch { return []; }
+  }
+  function savePositions(p) { localStorage.setItem(POSITIONS_KEY, JSON.stringify(p)); }
+  function addPosition(pos) {
+    const all = getPositions();
+    all.unshift(pos);
+    savePositions(all);
+  }
+  function updatePosition(id, patch) {
+    const all = getPositions();
+    const i = all.findIndex(p => p.id === id);
+    if (i >= 0) { all[i] = { ...all[i], ...patch }; savePositions(all); }
+  }
+
+  function parseTransferAmount(logs, tokenAddress, toAddress) {
+    const padded = '0x' + toAddress.slice(2).toLowerCase().padStart(64, '0');
+    const log = logs.find(l =>
+      l.address?.toLowerCase() === tokenAddress.toLowerCase() &&
+      l.topics?.[0] === TRANSFER_TOPIC &&
+      l.topics?.[2]?.toLowerCase() === padded
+    );
+    return log ? BigInt(log.data) : 0n;
+  }
+
+  async function fetchTokenPrice(tokenAddress) {
+    try {
+      const r = await fetch(`https://api.dexscreener.com/token-pairs/v1/base/${tokenAddress}`, { signal: AbortSignal.timeout(6000) });
+      const d = await r.json();
+      const pairs = d?.pairs || [];
+      if (!pairs.length) return null;
+      const best = pairs.reduce((a, b) => (b.liquidity?.usd || 0) > (a.liquidity?.usd || 0) ? b : a, pairs[0]);
+      return parseFloat(best.priceUsd || 0) || null;
+    } catch { return null; }
+  }
+
+  async function loadPositions() {
+    const all = getPositions();
+    const week = 7 * 24 * 3600 * 1000;
+    const visible = all.filter(p => p.status === 'open' || (p.closedAt && Date.now() - p.closedAt < week));
+    if (!visible.length) {
+      document.getElementById('positions-table').innerHTML =
+        '<div class="dim" style="padding:8px;font-size:11px;">NO OPEN POSITIONS — APPROVE A TRADE PROPOSAL TO START</div>';
+      document.getElementById('positions-count').textContent = '';
+      return;
+    }
+    // Fetch current prices for open positions only
+    const enriched = await Promise.all(visible.map(async p => {
+      if (p.status !== 'open') return p;
+      const currentPriceUsd = await fetchTokenPrice(p.tokenAddress);
+      return { ...p, currentPriceUsd };
+    }));
+    const openCount = enriched.filter(p => p.status === 'open').length;
+    document.getElementById('positions-count').textContent = openCount ? `[${openCount}]` : '';
+    document.getElementById('positions-updated').textContent = 'updated ' + timeAgo(new Date());
+    renderPositions(enriched);
+  }
+
+  function calcPnL(pos) {
+    const { entryPriceUsd, currentPriceUsd, amountEth, ethPriceAtEntry } = pos;
+    if (!entryPriceUsd || !currentPriceUsd) return null;
+    const entryUsd   = amountEth * (ethPriceAtEntry || ethPrice);
+    const currentUsd = entryUsd * (currentPriceUsd / entryPriceUsd);
+    const pnlUsd = currentUsd - entryUsd;
+    const pnlPct = (pnlUsd / entryUsd) * 100;
+    return { pnlUsd, pnlPct, currentUsd, entryUsd };
+  }
+
+  function renderPositions(positions) {
+    const el = document.getElementById('positions-table');
+    const rows = positions.map(pos => {
+      const isOpen   = pos.status === 'open';
+      const pnl      = isOpen ? calcPnL(pos) : null;
+      const closeP   = !isOpen ? pos.closePriceUsd : null;
+      const closePnl = !isOpen && pos.closePnlUsd != null ? pos.closePnlUsd : null;
+
+      const entryFmt   = pos.entryPriceUsd  ? fmtPrice(pos.entryPriceUsd)  : '—';
+      const currentFmt = isOpen
+        ? (pos.currentPriceUsd ? fmtPrice(pos.currentPriceUsd) : '<span class="dim">loading…</span>')
+        : (closeP ? fmtPrice(closeP) : '—');
+      const age = pos.entryTimestamp ? fmtAge((Date.now() - pos.entryTimestamp) / 3_600_000) : '—';
+
+      let pnlHtml = '<span class="dim">—</span>';
+      if (pnl) {
+        const cls = pnl.pnlUsd >= 0 ? 'pnl-pos' : 'pnl-neg';
+        const big = Math.abs(pnl.pnlPct) > 50 ? ' pnl-big' : '';
+        const sign = pnl.pnlUsd >= 0 ? '+' : '';
+        pnlHtml = `<span class="${cls}${big}">${sign}${pnl.pnlPct.toFixed(1)}%</span>
+                   <span class="${cls}" style="font-size:10px;margin-left:4px;">${sign}$${Math.abs(pnl.pnlUsd).toFixed(2)}</span>`;
+      } else if (closePnl != null) {
+        const cls = closePnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+        const sign = closePnl >= 0 ? '+' : '';
+        pnlHtml = `<span class="${cls}">${sign}$${Math.abs(closePnl).toFixed(2)}</span>`;
+      }
+
+      const action = isOpen
+        ? `<button class="sell-btn" onclick="openSellModal('${pos.id}')">SELL</button>`
+        : `<span class="sold-tag">CLOSED</span>`;
+
+      return `<tr class="${isOpen ? 'pos-open' : 'pos-closed'}">
+        <td class="sym"><a href="${pos.dexUrl||'#'}" target="_blank">$${pos.symbol}</a></td>
+        <td style="font-size:10px;color:var(--g3);">${entryFmt}</td>
+        <td style="font-size:10px;">${currentFmt}</td>
+        <td>${pnlHtml}</td>
+        <td class="dim" style="font-size:10px;">${age}</td>
+        <td style="font-size:10px;color:var(--g3);">${fmtVol(pos.amountEth * (pos.ethPriceAtEntry || ethPrice))}</td>
+        <td>${action}</td>
+      </tr>`;
+    }).join('');
+
+    el.innerHTML = `<table class="pos-table">
+      <thead><tr>
+        <th>TOKEN</th><th>ENTRY</th><th>NOW</th><th>P&amp;L</th><th>AGE</th><th>RISKED</th><th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  // ── SELL ─────────────────────────────────────────
+  function openSellModal(posId) {
+    const pos = getPositions().find(p => p.id === posId);
+    if (!pos) return;
+    pendingSell = pos;
+    const pnl = calcPnL(pos);
+    const pnlLine = pnl
+      ? `<div class="swap-detail-row"><span class="dim">UNREALIZED P&L</span>
+           <span class="${pnl.pnlUsd >= 0 ? 'pnl-pos' : 'pnl-neg'}">
+             ${pnl.pnlUsd >= 0 ? '+' : ''}${pnl.pnlPct.toFixed(1)}% &nbsp;
+             ${pnl.pnlUsd >= 0 ? '+' : '-'}$${Math.abs(pnl.pnlUsd).toFixed(2)}
+           </span></div>` : '';
+    document.getElementById('sell-detail-rows').innerHTML = `
+      <div class="swap-detail-row"><span class="dim">TOKEN</span><span style="color:var(--g1)">$${pos.symbol}</span></div>
+      <div class="swap-detail-row"><span class="dim">ENTRY PRICE</span><span style="color:var(--g3)">${pos.entryPriceUsd ? fmtPrice(pos.entryPriceUsd) : '—'}</span></div>
+      <div class="swap-detail-row"><span class="dim">CURRENT PRICE</span><span style="color:var(--g2)">${pos.currentPriceUsd ? fmtPrice(pos.currentPriceUsd) : '—'}</span></div>
+      ${pnlLine}
+      <div class="swap-detail-row"><span class="dim">AMOUNT</span><span>full balance</span></div>`;
+    document.getElementById('sell-status').textContent = '';
+    document.getElementById('sell-scan-link').style.display = 'none';
+    const btn = document.getElementById('sell-confirm-btn');
+    btn.disabled = false;
+    btn.textContent = 'SELL ALL VIA METAMASK';
+    openModal('sell-modal');
+  }
+
+  async function confirmSell() {
+    if (!pendingSell) return;
+    const { id, symbol, tokenAddress, dexUrl, entryPriceUsd, amountEth, ethPriceAtEntry } = pendingSell;
+    const btn = document.getElementById('sell-confirm-btn');
+
+    const setSellStatus = (msg, color) => {
+      const el = document.getElementById('sell-status');
+      el.textContent = msg; el.style.color = color || 'var(--g2)';
+    };
+
+    if (!window.ethereum) { setSellStatus('MetaMask not found.', 'var(--red)'); return; }
+    btn.disabled = true;
+    btn.textContent = 'WAITING...';
+    setSellStatus('Connecting...', 'var(--g2)');
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const network  = await provider.getNetwork();
+      if (network.chainId !== 8453n) {
+        setSellStatus('Switching to Base...', 'var(--g2)');
+        await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x2105' }] });
+      }
+      const signer  = await provider.getSigner();
+      const user    = await signer.getAddress();
+      const token   = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+      const balance = await token.balanceOf(user);
+
+      if (balance === 0n) { setSellStatus('No token balance found.', 'var(--red)'); btn.disabled = false; btn.textContent = 'RETRY'; return; }
+
+      // Approve if needed
+      const allowance = await token.allowance(user, SWAP_ROUTER);
+      if (allowance < balance) {
+        setSellStatus('Step 1/2 — Approve token spend in MetaMask...', 'var(--g2)');
+        const approveTx = await token.approve(SWAP_ROUTER, ethers.MaxUint256);
+        setSellStatus('Waiting for approval...', 'var(--g2)');
+        await approveTx.wait();
+      }
+
+      // Swap token → WETH
+      const router = new ethers.Contract(SWAP_ROUTER, ROUTER_ABI, signer);
+      let tx = null;
+      setSellStatus('Step 2/2 — Confirm swap in MetaMask...', 'var(--g2)');
+      for (const fee of [10000, 3000, 500]) {
+        try {
+          tx = await router.exactInputSingle({
+            tokenIn: tokenAddress, tokenOut: WETH, fee,
+            recipient: user, amountIn: balance,
+            amountOutMinimum: 0n, sqrtPriceLimitX96: 0n,
+          });
+          break;
+        } catch (e) { if (e.code === 4001) throw e; }
+      }
+      if (!tx) throw new Error('No Uniswap v3 pool found');
+
+      setSellStatus('Confirming transaction...', 'var(--g2)');
+      btn.textContent = 'CONFIRMING...';
+      const receipt = await tx.wait();
+
+      if (receipt.status === 1) {
+        // Calculate close P&L
+        const closePriceUsd = pendingSell.currentPriceUsd || null;
+        const entryUsd  = amountEth * (ethPriceAtEntry || ethPrice);
+        const closeUsd  = closePriceUsd && entryPriceUsd ? entryUsd * (closePriceUsd / entryPriceUsd) : null;
+        const closePnl  = closeUsd != null ? closeUsd - entryUsd : null;
+        updatePosition(id, { status: 'closed', closedAt: Date.now(), closePriceUsd, closePnlUsd: closePnl, closeTxHash: tx.hash });
+        btn.textContent = '✓ SOLD';
+        setSellStatus('', '');
+        document.getElementById('sell-scan-link').style.display = 'block';
+        document.getElementById('sell-scan-a').href = `https://basescan.org/tx/${tx.hash}`;
+        loadPositions();
+      } else {
+        throw new Error('Transaction reverted');
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'RETRY';
+      const msg = e.code === 4001 ? 'Rejected in MetaMask.' : e.message?.slice(0, 80) || 'Unknown error';
+      setSellStatus(`❌ ${msg}`, 'var(--red)');
+    }
+  }
+
+  // Refresh positions every 60s for live P&L
+  setInterval(loadPositions, 60_000);
+
   // ── ETH PRICE ────────────────────────────────────
   let ethPrice = 3500;
   async function fetchEthPrice() {
@@ -1030,10 +1320,26 @@
       const receipt = await tx.wait();
       if (receipt.status === 1) {
         btn.textContent = '✓ CONFIRMED';
-        setSwapStatus(`✅ Swap confirmed! View on BaseScan →`, '#00ff41');
-        // Make status a link
         const el = document.getElementById('swap-status');
+        el.style.color = '#00ff41';
         el.innerHTML = `✅ Swap confirmed! <a href="https://basescan.org/tx/${tx.hash}" target="_blank" style="color:#00ff41;">View on BaseScan →</a>`;
+        // Save position
+        const tokenAmtRaw = parseTransferAmount(receipt.logs, tokenAddress, recipient);
+        const tokenAmtFloat = tokenAmtRaw > 0n ? Number(tokenAmtRaw) / 1e18 : null;
+        const entryPriceUsd = tokenAmtFloat && ethPrice ? (riskEth * ethPrice) / tokenAmtFloat : null;
+        addPosition({
+          id: `${tokenAddress}-${Date.now()}`,
+          symbol, tokenAddress,
+          amountEth: riskEth,
+          tokenAmount: tokenAmtFloat,
+          entryPriceUsd,
+          ethPriceAtEntry: ethPrice,
+          entryTimestamp: Date.now(),
+          txHash: tx.hash,
+          dexUrl: pendingSwap.url || `https://dexscreener.com/base/${tokenAddress}`,
+          status: 'open',
+        });
+        loadPositions();
       } else {
         throw new Error('Transaction reverted');
       }
