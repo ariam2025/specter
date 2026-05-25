@@ -149,9 +149,12 @@ async function fetchCommits() {
 
 function buildMarketSummary(spikes) {
   if (!spikes.length) return 'No spikes detected this cycle. Market is silent.';
-  const lines = [`${spikes.length} spike(s) detected on Base Network:`];
+  const lines = [`${spikes.length} spike(s) detected on Base Network (source: Bankr launches):`];
   spikes.slice(0, 5).forEach(s => {
-    lines.push(`  - $${s.symbol}: ${s.spikeRatio}x spike | vol1h $${fmt(s.vol1h)} | liq $${fmt(s.liqUsd)} | ${s.change24h >= 0 ? '+' : ''}${s.change24h?.toFixed(1)}% 24h`);
+    const age     = s.ageHours != null ? ` | age: ${s.ageHours}h` : '';
+    const social  = s.xUsername ? ` | @${s.xUsername}` : '';
+    const buySell = s.buys1h && s.sells1h ? ` | buy/sell: ${s.buys1h}/${s.sells1h}` : '';
+    lines.push(`  - $${s.symbol}: ${s.spikeRatio}x spike | vol1h $${fmt(s.vol1h)} | liq $${fmt(s.liqUsd)} | ${s.change24h >= 0 ? '+' : ''}${s.change24h?.toFixed(1)}% 24h${age}${buySell}${social}`);
   });
   return lines.join('\n');
 }

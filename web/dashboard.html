@@ -598,10 +598,9 @@
     const sorted = [...tokens].sort((a,b) => sortDir * ((b[sortKey]||0) - (a[sortKey]||0)));
     const cols = [
       { key:'symbol',     label:'TOKEN' },
+      { key:'ageHours',   label:'AGE' },
       { key:'priceUsd',   label:'PRICE' },
-      { key:'mcap',       label:'MCAP' },
       { key:'vol1h',      label:'VOL 1H' },
-      { key:'vol24h',     label:'VOL 24H' },
       { key:'change24h',  label:'24H %' },
       { key:'spikeRatio', label:'SPIKE' },
     ];
@@ -609,16 +608,16 @@
       <table class="token-table">
         <thead><tr>${cols.map(c =>
           `<th onclick="resort('${c.key}')">${c.label}${sortKey===c.key?(sortDir>0?' ▲':' ▼'):''}</th>`
-        ).join('')}<th>DEX</th></tr></thead>
+        ).join('')}<th>CREATOR</th><th>DEX</th></tr></thead>
         <tbody>${sorted.map(t => `
           <tr>
             <td class="sym"><a href="${t.url||'#'}" target="_blank">$${t.symbol}</a></td>
+            <td class="dim" style="font-size:10px;">${t.ageHours != null ? fmtAge(t.ageHours) : '—'}</td>
             <td class="price">${fmtPrice(t.priceUsd)}</td>
-            <td class="dim">${fmtVol(t.mcap)}</td>
             <td>${fmtVol(t.vol1h)}</td>
-            <td class="dim">${fmtVol(t.vol24h)}</td>
             <td class="${t.change24h>=0?'up':'dn'}">${t.change24h>=0?'+':''}${(t.change24h||0).toFixed(1)}%</td>
             <td>${spikeBadge(t.spikeRatio)}</td>
+            <td style="font-size:10px;">${t.xUsername ? `<a href="https://x.com/${t.xUsername}" target="_blank" style="color:var(--g4);text-decoration:none;">@${t.xUsername}</a>` : '<span class="dim">—</span>'}</td>
             <td class="dim" style="font-size:10px;">${(t.dex||'').toUpperCase()}</td>
           </tr>`).join('')}
         </tbody>
@@ -633,16 +632,16 @@
     }
     document.getElementById('spike-table').innerHTML = `
       <table class="token-table">
-        <thead><tr><th>TOKEN</th><th>SPIKE</th><th>VOL 1H</th><th>VOL 24H</th><th>CHANGE</th><th>LIQ</th><th>DEX</th></tr></thead>
+        <thead><tr><th>TOKEN</th><th>AGE</th><th>SPIKE</th><th>VOL 1H</th><th>BUY/SELL</th><th>CHANGE</th><th>CREATOR</th></tr></thead>
         <tbody>${spikes.map(t => `
           <tr>
             <td class="sym"><a href="${t.url||'#'}" target="_blank">$${t.symbol}</a></td>
+            <td class="dim" style="font-size:10px;">${fmtAge(t.ageHours)}</td>
             <td>${spikeBadge(t.spikeRatio)}</td>
             <td class="amber">${fmtVol(t.vol1h)}</td>
-            <td class="dim">${fmtVol(t.vol24h)}</td>
+            <td style="font-size:10px;color:var(--g3);">${t.buys1h||0}<span class="dim">/${t.sells1h||0}</span></td>
             <td class="${t.change24h>=0?'up':'dn'}">${t.change24h>=0?'+':''}${(t.change24h||0).toFixed(1)}%</td>
-            <td class="dim">${fmtVol(t.liqUsd)}</td>
-            <td class="dim" style="font-size:10px;">${(t.dex||'').toUpperCase()}</td>
+            <td style="font-size:10px;">${t.xUsername ? `<a href="https://x.com/${t.xUsername}" target="_blank" style="color:var(--g4);text-decoration:none;">@${t.xUsername}</a>` : t.tweetUrl ? `<a href="${t.tweetUrl}" target="_blank" style="color:var(--g4);text-decoration:none;">tweet</a>` : '<span class="dim">—</span>'}</td>
           </tr>`).join('')}
         </tbody>
       </table>`;
@@ -695,6 +694,13 @@
     if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
     if (n >= 1e3) return '$' + (n/1e3).toFixed(1) + 'K';
     return '$' + Math.round(n);
+  }
+
+  function fmtAge(h) {
+    if (h == null) return '—';
+    if (h < 1)  return Math.round(h * 60) + 'm';
+    if (h < 24) return h.toFixed(1) + 'h';
+    return Math.floor(h / 24) + 'd';
   }
 
   function fmtPrice(n) {

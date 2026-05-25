@@ -24,6 +24,21 @@ ${context.memory.learnings || 'None yet. First cycles build the foundation.'}
 ## Market Data This Cycle
 ${context.marketSummary}
 ${tradeSection}
+## Token Data Fields (Bankr source)
+Each token now includes Bankr-specific metadata:
+- ageHours: how old the token is since Bankr launch
+- xUsername: Twitter handle of the creator/fee recipient
+- tweetUrl: the launch tweet
+- websiteUrl: project website
+- spikeRatio: 99 = brand new token with volume but no 24h baseline (treat as HIGH interest)
+- source: 'bankr' (all tokens come from Bankr launchpad this cycle)
+
+Use these signals in your analysis:
+- Very low ageHours (<2h) + any volume = extremely early signal
+- xUsername present = real person behind the project (not anonymous)
+- tweetUrl = check for social confirmation
+- spikeRatio 99 = first-hour volume on a brand new token — immediate attention required
+
 ## Rules
 1. Think first. Use the think() tool to reason before acting.
 2. Journal every cycle. Write what you found, what patterns you see, what you're learning.
