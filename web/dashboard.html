@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SPECTER // INTELLIGENCE DASHBOARD</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" href="favicon.png">
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
   <script src="wallet.js"></script>
@@ -242,6 +244,58 @@
     .sold-tag { color:var(--g4); font-size:10px; letter-spacing:1px; }
     .live-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#00ff41; margin-right:5px; animation:pulse .8s infinite; }
 
+    /* BURN */
+    .burn-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+    @media(max-width:700px){ .burn-grid { grid-template-columns:1fr; } }
+    .burn-card {
+      border: 1px solid var(--border); padding: 14px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .burn-card.active { border-color: var(--red); }
+    .burn-title  { font-size: 12px; color: var(--g1); letter-spacing: 1px; }
+    .burn-cost   { font-size: 11px; color: var(--red); }
+    .burn-desc   { font-size: 10px; color: var(--g4); line-height: 1.7; }
+    .burn-input  {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--g1); font-family: inherit; font-size: 11px;
+      padding: 6px 8px; width: 100%; outline: none;
+    }
+    .burn-input:focus { border-color: var(--red); }
+    .burn-btn {
+      border: 1px solid var(--red); background: transparent;
+      color: var(--red); font-family: inherit; font-size: 10px;
+      padding: 6px; cursor: pointer; letter-spacing: 1px; width: 100%;
+    }
+    .burn-btn:hover { background: rgba(255,102,153,.1); }
+    .burn-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .burn-status { font-size: 10px; line-height: 1.7; min-height: 14px; }
+    .not-deployed { font-size: 10px; color: var(--g4); padding: 16px; text-align: center; letter-spacing: 1px; }
+
+    /* STAKING */
+    .stake-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 10px; }
+    @media(max-width:600px){ .stake-stats { grid-template-columns:1fr; } }
+    .stake-stat { border: 1px solid var(--border); padding: 10px 12px; }
+    .stake-stat-label { font-size: 10px; color: var(--g3); letter-spacing: 1px; margin-bottom: 4px; }
+    .stake-stat-value { font-size: 18px; color: var(--g2); }
+    .stake-stat-sub   { font-size: 10px; color: var(--g4); margin-top: 2px; }
+    .stake-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .stake-input {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--g1); font-family: inherit; font-size: 12px;
+      padding: 7px 10px; width: 160px; outline: none;
+    }
+    .stake-input:focus { border-color: var(--g2); }
+    .stake-btn {
+      border: 1px solid var(--g4); background: transparent;
+      color: var(--g3); font-family: inherit; font-size: 10px;
+      padding: 7px 14px; cursor: pointer; letter-spacing: 1px;
+    }
+    .stake-btn:hover { border-color: var(--g2); color: var(--g2); }
+    .stake-btn.claim { border-color: var(--g2); color: var(--g2); }
+    .stake-btn.claim:hover { background: rgba(196,176,255,.1); }
+    .stake-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .stake-status { font-size: 10px; color: var(--g3); margin-top: 8px; min-height: 14px; }
+
     /* MODALS */
     .modal-overlay {
       display: none; position: fixed; inset: 0;
@@ -389,7 +443,8 @@
 
   <header>
     <div style="display:flex;align-items:center;gap:20px;">
-      <a href="index.html" style="text-decoration:none;">
+      <a href="index.html" style="text-decoration:none;display:flex;align-items:center;gap:8px;">
+        <img src="logo.png" alt="SPECTER" style="width:28px;height:28px;object-fit:contain;image-rendering:pixelated;filter:drop-shadow(0 0 6px #7c66cc);">
         <span class="brand glow">SPECTER</span>
       </a>
       <nav class="nav">
@@ -397,6 +452,8 @@
         <a href="#spikes">SPIKES</a>
         <a href="#positions">POSITIONS</a>
         <a href="#trades">TRADES</a>
+        <a href="#burn">BURN</a>
+        <a href="#staking">STAKING</a>
         <a href="#agent">AGENT LOG</a>
         <a href="#memory">MEMORY</a>
       </nav>
@@ -547,6 +604,84 @@
     </div>
   </div>
 
+  <!-- BURN ACTIONS -->
+  <div class="panel" id="burn">
+    <div class="panel-head">
+      🔥 BURN ACTIONS <span>[$SPECTER → INTELLIGENCE]</span>
+      <span class="dim" style="font-size:10px;">BURNED TO TREASURY // STAKERS SHARE FEES</span>
+    </div>
+    <div class="panel-body">
+      <div class="burn-grid">
+
+        <div class="burn-card">
+          <div class="burn-title">ANALYZE TOKEN</div>
+          <div class="burn-cost">100 $SPECTER</div>
+          <div class="burn-desc">Deep-dive on any Base token. Agent scans contract bytecode, social presence, wallet concentration, and on-chain patterns. Delivered next cycle.</div>
+          <input class="burn-input" id="burn-token-analyze" placeholder="Token contract (0x…)" autocomplete="off" />
+          <button class="burn-btn" id="burn-btn-analyze" onclick="executeBurn('analyze', 100)">BURN &amp; REQUEST ANALYSIS</button>
+          <div class="burn-status" id="burn-status-analyze"></div>
+        </div>
+
+        <div class="burn-card">
+          <div class="burn-title">MONITOR 24H</div>
+          <div class="burn-cost">500 $SPECTER</div>
+          <div class="burn-desc">24-hour active monitoring on a specific token. SPECTER watches every cycle for spikes, large wallet movements, and pattern breaks. Flagged as a priority signal.</div>
+          <input class="burn-input" id="burn-token-monitor" placeholder="Token contract (0x…)" autocomplete="off" />
+          <button class="burn-btn" id="burn-btn-monitor" onclick="executeBurn('monitor', 500)">BURN &amp; ACTIVATE MONITOR</button>
+          <div class="burn-status" id="burn-status-monitor"></div>
+        </div>
+
+        <div class="burn-card">
+          <div class="burn-title">SMART CONTRACT AUDIT</div>
+          <div class="burn-cost">1,000 $SPECTER</div>
+          <div class="burn-desc">Full autonomous audit. SPECTER scans for rug vectors, honeypot indicators, hidden mint functions, ownership renouncement, and proxy upgrade risks.</div>
+          <input class="burn-input" id="burn-token-audit" placeholder="Token contract (0x…)" autocomplete="off" />
+          <button class="burn-btn" id="burn-btn-audit" onclick="executeBurn('audit', 1000)">BURN &amp; REQUEST AUDIT</button>
+          <div class="burn-status" id="burn-status-audit"></div>
+        </div>
+
+      </div>
+      <div style="margin-top:12px;font-size:10px;color:var(--g4);line-height:1.9;border-top:1px dotted var(--g4);padding-top:8px;">
+        Burned $SPECTER is transferred to the treasury. Each burn opens a GitHub issue — SPECTER picks it up on the next cycle and posts results.
+        <span style="color:var(--g3);">&nbsp;Treasury fees are distributed to stakers.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAKING -->
+  <div class="panel" id="staking">
+    <div class="panel-head">
+      ⛏ STAKING <span>[EARN PLATFORM FEES]</span>
+      <span class="dim" style="font-size:10px;">STAKE $SPECTER // SHARE BURN REVENUE</span>
+    </div>
+    <div class="panel-body">
+      <div class="stake-stats">
+        <div class="stake-stat">
+          <div class="stake-stat-label">YOUR STAKED</div>
+          <div class="stake-stat-value" id="stake-your">—</div>
+          <div class="stake-stat-sub">$SPECTER</div>
+        </div>
+        <div class="stake-stat">
+          <div class="stake-stat-label">CLAIMABLE</div>
+          <div class="stake-stat-value" id="stake-rewards">—</div>
+          <div class="stake-stat-sub">$SPECTER</div>
+        </div>
+        <div class="stake-stat">
+          <div class="stake-stat-label">TOTAL STAKED</div>
+          <div class="stake-stat-value" id="stake-total">—</div>
+          <div class="stake-stat-sub">PLATFORM-WIDE</div>
+        </div>
+      </div>
+      <div class="stake-actions">
+        <input class="stake-input" id="stake-amount" type="number" placeholder="Amount $SPECTER" min="1" step="1" />
+        <button class="stake-btn" id="stake-stake-btn" onclick="executeStake()">STAKE</button>
+        <button class="stake-btn" id="stake-unstake-btn" onclick="executeUnstake()">UNSTAKE</button>
+        <button class="stake-btn claim" id="stake-claim-btn" onclick="executeClaim()">CLAIM REWARDS</button>
+      </div>
+      <div class="stake-status" id="stake-status"></div>
+    </div>
+  </div>
+
   <footer>
     <span>SPECTER // BASE NETWORK INTELLIGENCE // <a href="https://github.com/ariam2025/specter" target="_blank">GITHUB</a></span>
     <span class="cursor">AUTONOMOUS AGENT ACTIVE</span>
@@ -561,6 +696,11 @@
 
   // Always bypass CDN cache — raw.githubusercontent.com can serve stale content
   const fetchRaw = (path) => fetch(`${RAW}/${path}?_=${Date.now()}`, { cache: 'no-store' });
+
+  // ── CONTRACT ADDRESSES — fill after deployment on Base ──────────
+  const SPECTER_TOKEN_ADDR = '';   // TODO: ERC-20 $SPECTER contract address
+  const TREASURY_ADDRESS   = '';   // TODO: treasury / burn recipient address
+  const STAKING_CONTRACT   = '';   // TODO: staking contract address
 
   let allTokens = [];
   let sortKey = 'spikeRatio';
@@ -1360,6 +1500,223 @@
       }
     }
   }
+
+  // ── BURN ──────────────────────────────────────────
+  const SPECTER_ERC20_ABI_FULL = [
+    'function balanceOf(address) view returns (uint256)',
+    'function allowance(address,address) view returns (uint256)',
+    'function approve(address,uint256) returns (bool)',
+    'function transfer(address,uint256) returns (bool)',
+  ];
+
+  async function executeBurn(type, amountTokens) {
+    const statusEl = document.getElementById(`burn-status-${type}`);
+    const btn      = document.getElementById(`burn-btn-${type}`);
+    const tokenCA  = (document.getElementById(`burn-token-${type}`)?.value || '').trim();
+
+    const setStatus = (msg, color) => {
+      statusEl.textContent = msg;
+      statusEl.style.color = color || 'var(--g3)';
+    };
+
+    if (!SPECTER_TOKEN_ADDR) { setStatus('AWAITING CONTRACT DEPLOYMENT', 'var(--g4)'); return; }
+    if (!TREASURY_ADDRESS)   { setStatus('TREASURY ADDRESS NOT CONFIGURED', 'var(--g4)'); return; }
+    if (!tokenCA || !tokenCA.startsWith('0x')) { setStatus('Enter a valid contract address (0x…)', 'var(--amber)'); return; }
+    if (!window.ethereum) { setStatus('MetaMask not found.', 'var(--red)'); return; }
+
+    btn.disabled = true;
+    setStatus('Connecting to wallet…', 'var(--g2)');
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const network  = await provider.getNetwork();
+      if (network.chainId !== 8453n) {
+        setStatus('Switching to Base Network…', 'var(--g2)');
+        await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x2105' }] });
+      }
+      const signer   = await provider.getSigner();
+      const user     = await signer.getAddress();
+      const amountBN = ethers.parseUnits(amountTokens.toString(), 18);
+      const token    = new ethers.Contract(SPECTER_TOKEN_ADDR, SPECTER_ERC20_ABI_FULL, signer);
+
+      const balance = await token.balanceOf(user);
+      if (balance < amountBN) {
+        const have = Number(ethers.formatUnits(balance, 18)).toFixed(0);
+        setStatus(`Need ${amountTokens.toLocaleString()} $SPECTER, you have ${Number(have).toLocaleString()}.`, 'var(--red)');
+        btn.disabled = false;
+        return;
+      }
+
+      const allowance = await token.allowance(user, TREASURY_ADDRESS);
+      if (allowance < amountBN) {
+        setStatus(`Step 1/2 — Approve ${amountTokens.toLocaleString()} $SPECTER in MetaMask…`, 'var(--g2)');
+        const approveTx = await token.approve(TREASURY_ADDRESS, amountBN);
+        setStatus('Waiting for approval…', 'var(--g2)');
+        await approveTx.wait();
+      }
+
+      setStatus('Step 2/2 — Confirm burn transfer in MetaMask…', 'var(--g2)');
+      const transferTx = await token.transfer(TREASURY_ADDRESS, amountBN);
+      setStatus('Confirming…', 'var(--g2)');
+      const receipt = await transferTx.wait();
+
+      if (receipt.status === 1) {
+        setStatus(`✓ ${amountTokens.toLocaleString()} $SPECTER burned! Opening GitHub issue…`, '#00ff41');
+        document.getElementById(`burn-token-${type}`).value = '';
+        const issueUrl = buildBurnIssueUrl(type, tokenCA, user, transferTx.hash);
+        setTimeout(() => window.open(issueUrl, '_blank'), 600);
+      } else {
+        throw new Error('Transaction reverted');
+      }
+    } catch (e) {
+      const msg = e.code === 4001 ? 'Rejected in MetaMask.' : e.message?.slice(0, 80) || 'Unknown error';
+      setStatus(`❌ ${msg}`, 'var(--red)');
+    }
+    btn.disabled = false;
+  }
+
+  function buildBurnIssueUrl(type, tokenCA, user, txHash) {
+    const meta = {
+      analyze: { title: `[BURN] Token Analysis — ${tokenCA}`,    label: 'ANALYZE',         cost: '100'   },
+      monitor: { title: `[BURN] 24H Monitor — ${tokenCA}`,       label: 'MONITOR 24H',     cost: '500'   },
+      audit:   { title: `[BURN] Contract Audit — ${tokenCA}`,    label: 'SMART CONTRACT AUDIT', cost: '1000' },
+    }[type];
+    const body = [
+      `## SPECTER Burn Request — ${meta.label}`,
+      ``,
+      `| Field | Value |`,
+      `|-------|-------|`,
+      `| **Type** | ${meta.label} |`,
+      `| **Cost** | ${meta.cost} $SPECTER burned |`,
+      `| **Token CA** | \`${tokenCA}\` |`,
+      `| **Requested by** | \`${user}\` |`,
+      `| **Burn TX** | \`${txHash}\` |`,
+      ``,
+      `*SPECTER will process this request on the next cycle.*`,
+    ].join('\n');
+    const params = new URLSearchParams({ title: meta.title, body, labels: 'burn-request' });
+    return `https://github.com/${REPO}/issues/new?${params}`;
+  }
+
+  // ── STAKING ────────────────────────────────────────
+  const STAKING_ABI = [
+    'function stake(uint256 amount)',
+    'function withdraw(uint256 amount)',
+    'function getReward()',
+    'function balanceOf(address) view returns (uint256)',
+    'function earned(address) view returns (uint256)',
+    'function totalSupply() view returns (uint256)',
+  ];
+
+  async function loadStaking() {
+    const setStatus = (msg, color) => {
+      const el = document.getElementById('stake-status');
+      el.textContent = msg;
+      el.style.color = color || 'var(--g3)';
+    };
+    const allBtns = ['stake-stake-btn', 'stake-unstake-btn', 'stake-claim-btn'];
+
+    if (!STAKING_CONTRACT) {
+      ['stake-your', 'stake-rewards', 'stake-total'].forEach(id => {
+        document.getElementById(id).textContent = '—';
+      });
+      setStatus('STAKING CONTRACT AWAITING DEPLOYMENT', 'var(--g4)');
+      allBtns.forEach(id => { document.getElementById(id).disabled = true; });
+      return;
+    }
+
+    if (!window.ethereum) return;
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer   = await provider.getSigner().catch(() => null);
+      if (!signer) return;
+      const user    = await signer.getAddress();
+      const staking = new ethers.Contract(STAKING_CONTRACT, STAKING_ABI, provider);
+
+      const [staked, rewards, total] = await Promise.all([
+        staking.balanceOf(user).catch(() => 0n),
+        staking.earned(user).catch(() => 0n),
+        staking.totalSupply().catch(() => 0n),
+      ]);
+
+      const fmt = (bn) => Number(ethers.formatUnits(bn, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+      document.getElementById('stake-your').textContent    = fmt(staked);
+      document.getElementById('stake-rewards').textContent = fmt(rewards);
+      document.getElementById('stake-total').textContent   = fmt(total);
+      setStatus('');
+      allBtns.forEach(id => { document.getElementById(id).disabled = false; });
+    } catch { setStatus('Failed to load staking data.', 'var(--red)'); }
+  }
+
+  async function executeStake()   { await _stakeAction('stake',   'STAKING');   }
+  async function executeUnstake() { await _stakeAction('unstake', 'UNSTAKING'); }
+  async function executeClaim()   { await _stakeAction('claim',   'CLAIMING');  }
+
+  async function _stakeAction(action, label) {
+    const statusEl = document.getElementById('stake-status');
+    const setStatus = (msg, color) => { statusEl.textContent = msg; statusEl.style.color = color || 'var(--g3)'; };
+    const allBtns  = ['stake-stake-btn', 'stake-unstake-btn', 'stake-claim-btn'];
+
+    if (!STAKING_CONTRACT) { setStatus('STAKING CONTRACT AWAITING DEPLOYMENT', 'var(--g4)'); return; }
+    if (!window.ethereum)  { setStatus('MetaMask not found.', 'var(--red)'); return; }
+
+    const needsAmount = action === 'stake' || action === 'unstake';
+    const amount = needsAmount ? parseFloat(document.getElementById('stake-amount').value) : 0;
+    if (needsAmount && (!amount || amount <= 0)) { setStatus('Enter an amount.', 'var(--amber)'); return; }
+
+    allBtns.forEach(id => { document.getElementById(id).disabled = true; });
+    setStatus(`${label}…`, 'var(--g2)');
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const network  = await provider.getNetwork();
+      if (network.chainId !== 8453n) {
+        await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x2105' }] });
+      }
+      const signer  = await provider.getSigner();
+      const user    = await signer.getAddress();
+      const staking = new ethers.Contract(STAKING_CONTRACT, STAKING_ABI, signer);
+      let tx;
+
+      if (action === 'stake') {
+        const amountBN  = ethers.parseUnits(amount.toString(), 18);
+        const specter   = new ethers.Contract(SPECTER_TOKEN_ADDR, SPECTER_ERC20_ABI_FULL, signer);
+        const allowance = await specter.allowance(user, STAKING_CONTRACT);
+        if (allowance < amountBN) {
+          setStatus('Approve $SPECTER spend in MetaMask…', 'var(--g2)');
+          const approveTx = await specter.approve(STAKING_CONTRACT, amountBN);
+          await approveTx.wait();
+        }
+        setStatus('Confirm stake in MetaMask…', 'var(--g2)');
+        tx = await staking.stake(amountBN);
+      } else if (action === 'unstake') {
+        const amountBN = ethers.parseUnits(amount.toString(), 18);
+        setStatus('Confirm unstake in MetaMask…', 'var(--g2)');
+        tx = await staking.withdraw(amountBN);
+      } else {
+        setStatus('Confirm claim in MetaMask…', 'var(--g2)');
+        tx = await staking.getReward();
+      }
+
+      setStatus('Confirming transaction…', 'var(--g2)');
+      const receipt = await tx.wait();
+      if (receipt.status === 1) {
+        setStatus(`✓ ${label} confirmed!`, '#00ff41');
+        document.getElementById('stake-amount').value = '';
+        await loadStaking();
+      } else {
+        throw new Error('Transaction reverted');
+      }
+    } catch (e) {
+      const msg = e.code === 4001 ? 'Rejected in MetaMask.' : e.message?.slice(0, 80) || 'Unknown error';
+      setStatus(`❌ ${msg}`, 'var(--red)');
+    }
+    allBtns.forEach(id => { document.getElementById(id).disabled = false; });
+  }
+
+  // Load staking on wallet connect
+  SpectorWallet.onChange(s => { if (s.connected) loadStaking(); });
+  loadStaking();
 </script>
 </body>
 </html>

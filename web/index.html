@@ -4,6 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SPECTER // BASE NETWORK INTELLIGENCE</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" href="favicon.png">
+
+  <!-- Open Graph -->
+  <meta property="og:type"        content="website">
+  <meta property="og:url"         content="https://ariam2025.github.io/specter/">
+  <meta property="og:title"       content="SPECTER // BASE NETWORK INTELLIGENCE">
+  <meta property="og:description" content="Autonomous intelligence agent on Base Network. Always scanning. Never sleeping.">
+  <meta property="og:image"       content="https://ariam2025.github.io/specter/web/og-image.png">
+  <meta property="og:image:width"  content="1424">
+  <meta property="og:image:height" content="752">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card"        content="summary_large_image">
+  <meta name="twitter:title"       content="SPECTER // BASE NETWORK INTELLIGENCE">
+  <meta name="twitter:description" content="Autonomous intelligence agent on Base Network. Always scanning. Never sleeping.">
+  <meta name="twitter:image"       content="https://ariam2025.github.io/specter/web/og-image.png">
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
   <script src="wallet.js"></script>
@@ -335,6 +352,51 @@
       color: var(--g1);
     }
 
+    /* HERO ENTER BUTTON */
+    @keyframes hero-pulse {
+      0%,100% { box-shadow: 0 0 18px rgba(124,102,204,.4), 0 0 36px rgba(124,102,204,.2); border-color: var(--g2); }
+      50%      { box-shadow: 0 0 42px rgba(196,176,255,.7), 0 0 80px rgba(124,102,204,.4), 0 0 120px rgba(124,102,204,.15); border-color: var(--g1); }
+    }
+    @keyframes hero-shine {
+      0%        { transform: translateX(-150%); }
+      30%,100%  { transform: translateX(250%); }
+    }
+    .cta-hero {
+      display: block;
+      border: 1px solid var(--g2);
+      color: var(--g1);
+      padding: 20px 0;
+      width: 82%;
+      max-width: 400px;
+      text-align: center;
+      font-family: inherit;
+      font-size: 16px;
+      letter-spacing: 6px;
+      cursor: pointer;
+      background: transparent;
+      text-decoration: none;
+      text-shadow: 0 0 10px var(--g1);
+      animation: hero-pulse 2.6s ease-in-out infinite;
+      transition: all .3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(196,176,255,.08), transparent);
+      transform: translateX(-150%);
+      animation: hero-shine 4s ease-in-out infinite;
+    }
+    .cta-hero:hover {
+      background: rgba(124,102,204,.18);
+      box-shadow: 0 0 50px var(--g2), 0 0 100px var(--g3), 0 0 150px rgba(124,102,204,.25);
+      letter-spacing: 9px;
+      color: var(--g1);
+      text-shadow: 0 0 14px var(--g1), 0 0 28px var(--g2);
+      border-color: var(--g1);
+    }
+
     /* FOOTER */
     footer {
       border-top: 1px solid var(--border);
@@ -374,11 +436,24 @@
 
     /* DATA timestamp */
     #data-ts { color: var(--g3); font-size: 10px; }
+
+    /* CANVAS BACKGROUND */
+    #bg-canvas {
+      position: fixed; inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+    #interface {
+      position: relative;
+      z-index: 2;
+    }
   </style>
 </head>
 <body>
 
 <div class="scan-line"></div>
+
+<canvas id="bg-canvas"></canvas>
 
 <!-- BOOT SEQUENCE -->
 <div id="boot">
@@ -445,28 +520,14 @@
 
       <div class="specter-title glow">SPECTER</div>
 
-      <pre class="rider-art">
-<span class="bright">         ░░░░░░░░░░░░░</span>
-<span class="bright">        ░░ ▓████████▓ ░░</span>
-        ░░ ████  ████ ░░
-       ░░ ▓██████████▓ ░░
-        ░░░ ░██████░ ░░░
-<span class="bright">    ░░░░░░░░░░████░░░░░░░░░░░░░░░░░░░░░░░░░░</span>
-   ░░░░░░░░░░░████░░░░░░░░░░░░░░░░░░░░░░░░░░
-<span class="bright">  ░░░░░░░░░░░░████░░░░░░░░░░░░░░░░░░░░░░░░░░░</span>
-   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-    ░░░░░░             ░░░░░░░░░░░░░░░░░░░░
-<span class="bright">    ░░   ░░             ░░              ░░</span>
-      </pre>
+      <img src="jinn.png" alt="SPECTER RIDER" style="max-width:100%;max-height:440px;object-fit:contain;image-rendering:pixelated;">
 
       <div class="subtitle-line">AUTONOMOUS INTELLIGENCE // BASE NETWORK</div>
-      <div class="subtitle-line active">▸ ALWAYS SCANNING ▸ NEVER SLEEPING ▸</div>
 
-      <div class="orders-box" style="text-align:center; margin-top:4px;">
-        <div class="label" style="margin-bottom:4px;">BATTLEFIELD STATUS</div>
-        <div id="c-status" style="color:var(--g1); font-size:15px; letter-spacing:2px;">ACTIVE</div>
-        <div class="dim" style="margin-top:4px; font-size:11px;" id="c-tokens">TOKENS TRACKED: ———</div>
-      </div>
+      <a href="dashboard.html" class="cta-hero">→ ENTER THE DARK_</a>
+
+      <div class="subtitle-line active" style="margin-top:6px;">▸ ALWAYS SCANNING ▸ NEVER SLEEPING ▸</div>
+      <div style="font-size:10px;color:var(--g4);letter-spacing:1px;margin-top:2px;" id="c-tokens">TOKENS TRACKED: ———</div>
     </div>
 
     <!-- RIGHT: LIVE SIGNALS -->
@@ -509,7 +570,6 @@
     <div class="t-line">
       &gt; LET THE DARK CLAIM WHAT REMAINS.
     </div>
-    <a href="dashboard.html" class="cta-btn glow">→ ENTER THE DARK_</a>
   </div>
 
   <!-- FOOTER STATUS BAR -->
@@ -692,6 +752,126 @@
     // Reload data every 5 min
     setInterval(loadData, 5 * 60 * 1000);
   }
+
+  // ── CANVAS BACKGROUND ────────────────────────────
+  (function() {
+    const canvas = document.getElementById('bg-canvas');
+    const ctx    = canvas.getContext('2d');
+    let W, H;
+
+    function resize() {
+      W = canvas.width  = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const COLORS = ['#7c66cc','#60519b','#a68fff','#4a3d80','#c4b0ff','#9b7fff'];
+    const COUNT  = 140;
+    const DIST   = 150;
+
+    const particles = Array.from({ length: COUNT }, () => ({
+      x:     Math.random() * window.innerWidth,
+      y:     Math.random() * window.innerHeight,
+      vx:    (Math.random() - 0.5) * 0.45,
+      vy:    (Math.random() - 0.5) * 0.45,
+      r:     Math.random() * 1.8 + 0.3,
+      alpha: Math.random() * 0.5 + 0.2,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    }));
+
+    // ── GLITCH STATE ─────────────────────────────
+    let glitchFrames  = 0;
+    let glitchPending = false;
+
+    function triggerGlitch() {
+      glitchFrames  = Math.floor(Math.random() * 10 + 5);
+      glitchPending = true;
+    }
+
+    // Fire randomly every 2.5–5s
+    function scheduleGlitch() {
+      setTimeout(() => { triggerGlitch(); scheduleGlitch(); },
+        2500 + Math.random() * 2500);
+    }
+    scheduleGlitch();
+
+    function applyGlitch() {
+      if (!glitchPending) return;
+
+      // Horizontal slice displacement
+      const slices = Math.floor(Math.random() * 5 + 3);
+      for (let i = 0; i < slices; i++) {
+        const sy  = Math.floor(Math.random() * H);
+        const sh  = Math.floor(Math.random() * 18 + 3);
+        const off = (Math.random() - 0.5) * 40;
+        try {
+          const strip = ctx.getImageData(0, sy, W, sh);
+          ctx.putImageData(strip, off, sy);
+        } catch {}
+      }
+
+      // Red/cyan scanline flash
+      if (Math.random() > 0.4) {
+        ctx.globalAlpha = 0.07 + Math.random() * 0.06;
+        ctx.fillStyle   = Math.random() > 0.5 ? '#ff6699' : '#c4b0ff';
+        const gy = Math.floor(Math.random() * H);
+        ctx.fillRect(0, gy, W, Math.floor(Math.random() * 4 + 1));
+      }
+
+      // Vertical color aberration strip
+      if (Math.random() > 0.6) {
+        ctx.globalAlpha = 0.04;
+        ctx.fillStyle   = '#ff6699';
+        const gx = Math.floor(Math.random() * W);
+        ctx.fillRect(gx, 0, Math.floor(Math.random() * 3 + 1), H);
+      }
+
+      glitchFrames--;
+      if (glitchFrames <= 0) glitchPending = false;
+    }
+
+    function loop() {
+      ctx.clearRect(0, 0, W, H);
+
+      // Update & draw nodes
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > W) p.vx *= -1;
+        if (p.y < 0 || p.y > H) p.vy *= -1;
+
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle   = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Draw connections
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx   = particles[i].x - particles[j].x;
+          const dy   = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < DIST) {
+            ctx.globalAlpha = (1 - dist / DIST) * 0.2;
+            ctx.strokeStyle = '#7c66cc';
+            ctx.lineWidth   = 0.6;
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      applyGlitch();
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(loop);
+    }
+    loop();
+  })();
 
   runBoot();
 
