@@ -564,8 +564,8 @@
   let sortDir = -1;
 
   async function loadAll() {
-    await Promise.allSettled([loadState(), loadTokens(), loadSpikes(), loadTrades(), loadLog(), loadMemory()]);
-    loadPositions(); // positions are local + DexScreener, run separately
+    await Promise.allSettled([loadState(), loadTokens(), loadSpikes(), loadTrades()]);
+    loadPositions();
   }
 
   async function loadState() {
@@ -918,11 +918,10 @@
     });
 
     // Gates — HUNTER (10k) unlocks agent log + memory
-    const hunterAccess = true; // TEMP: open access for review
+    const hunterAccess = SpectorWallet.hasAccess('HUNTER');
     document.getElementById('gate-agent').style.display  = hunterAccess ? 'none' : 'flex';
     document.getElementById('gate-memory').style.display = hunterAccess ? 'none' : 'flex';
 
-    // If just unlocked, load the data
     if (hunterAccess) {
       loadLog();
       loadMemory();
