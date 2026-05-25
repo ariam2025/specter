@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPECTER // INTELLIGENCE DASHBOARD</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:     #030503;
+      --g1:     #00ff41;
+      --g2:     #00cc33;
+      --g3:     #008822;
+      --g4:     #003311;
+      --amber:  #ffcc00;
+      --red:    #ff2200;
+      --border: #004d14;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--g1);
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      font-size: 13px;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px);
+      pointer-events: none; z-index: 9999;
+    }
+    @keyframes blink  { 0%,100%{opacity:1} 50%{opacity:0} }
+    @keyframes pulse  { 0%,100%{opacity:.6} 50%{opacity:1} }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    .glow    { text-shadow: 0 0 6px var(--g1), 0 0 12px var(--g1); }
+    .dim     { color: var(--g3); }
+    .amber   { color: var(--amber); }
+    .red     { color: var(--red); }
+    .cursor::after { content:'_'; animation: blink 1s step-end infinite; }
+
+    /* LAYOUT */
+    .shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 8px 12px;
+      display: flex; flex-direction: column; gap: 8px;
+      animation: fadeIn .5s ease;
+    }
+
+    /* HEADER */
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid var(--border); padding-bottom: 6px;
+    }
+    .brand { font-size: 18px; letter-spacing: 4px; color: var(--g1); }
+    .nav { display: flex; gap: 16px; font-size: 11px; }
+    .nav a { color: var(--g3); text-decoration: none; letter-spacing: 1px; }
+    .nav a:hover, .nav a.active { color: var(--g1); }
+    .header-right { font-size: 11px; color: var(--g3); }
+    .header-right span { color: var(--g2); }
+
+    /* METRICS ROW */
+    .metrics {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    }
+    .metric-card {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      background: rgba(0,20,5,0.3);
+    }
+    .metric-label { font-size: 10px; color: var(--g3); letter-spacing: 1px; margin-bottom: 4px; }
+    .metric-value { font-size: 22px; color: var(--g1); text-shadow: 0 0 8px var(--g1); }
+    .metric-sub   { font-size: 10px; color: var(--g3); margin-top: 2px; }
+    .metric-card.amber .metric-value { color: var(--amber); text-shadow: 0 0 8px var(--amber); }
+    .metric-card.red   .metric-value { color: var(--red); text-shadow: 0 0 8px var(--red); animation: pulse 1s infinite; }
+
+    /* TWO-COLUMN */
+    .two-col { display: grid; grid-template-columns: 1fr 320px; gap: 8px; }
+
+    /* PANELS */
+    .panel { border: 1px solid var(--border); background: rgba(0,20,5,0.3); }
+    .panel-head {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px; color: var(--g3); letter-spacing: 1px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .panel-head span { color: var(--g2); }
+    .panel-body { padding: 10px 12px; }
+
+    /* TOKEN TABLE */
+    .token-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .token-table th {
+      text-align: left; color: var(--g3); padding: 4px 8px;
+      border-bottom: 1px solid var(--border); letter-spacing: 1px;
+      cursor: pointer; user-select: none;
+    }
+    .token-table th:hover { color: var(--g2); }
+    .token-table td { padding: 6px 8px; border-bottom: 1px dotted var(--g4); vertical-align: middle; }
+    .token-table tr:last-child td { border: none; }
+    .token-table tr:hover td { background: rgba(0,80,20,0.1); }
+    .sym { color: var(--g1); font-size: 12px; }
+    .sym a { color: inherit; text-decoration: none; }
+    .sym a:hover { text-shadow: 0 0 6px var(--g1); }
+    .price { color: var(--g2); }
+    .up    { color: #00ff41; }
+    .dn    { color: var(--red); }
+    .spike-badge {
+      display: inline-block; padding: 1px 5px;
+      border: 1px solid; font-size: 10px; letter-spacing: 1px;
+    }
+    .spike-hot  { color: var(--red); border-color: var(--red); animation: pulse 1s infinite; }
+    .spike-warn { color: var(--amber); border-color: var(--amber); }
+    .spike-low  { color: var(--g3); border-color: var(--g4); }
+
+    /* AGENT LOG */
+    .log-entry {
+      padding: 6px 0; border-bottom: 1px dotted var(--g4);
+      font-size: 11px; line-height: 1.7;
+    }
+    .log-entry:last-child { border: none; }
+    .log-ts { color: var(--g4); font-size: 10px; }
+    .log-msg { color: var(--g3); }
+    .log-msg .hi { color: var(--g2); }
+    .log-msg .ok { color: var(--g1); }
+    .log-msg .warn { color: var(--amber); }
+
+    /* MEMORY VIEWER */
+    .memory-block { margin-bottom: 12px; }
+    .memory-title { color: var(--g3); font-size: 10px; letter-spacing: 1px; margin-bottom: 4px; border-bottom: 1px dotted var(--g4); padding-bottom: 3px; }
+    .memory-content { color: var(--g3); font-size: 11px; line-height: 1.8; white-space: pre-wrap; }
+    .memory-content .hi { color: var(--g2); }
+
+    /* LOADING */
+    .loading { color: var(--g3); padding: 20px; text-align: center; animation: pulse 1.5s infinite; }
+
+    /* REFRESH BTN */
+    .refresh-btn {
+      background: none; border: 1px solid var(--border);
+      color: var(--g3); font-family: inherit; font-size: 10px;
+      padding: 2px 8px; cursor: pointer; letter-spacing: 1px;
+    }
+    .refresh-btn:hover { color: var(--g1); border-color: var(--g2); }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border); padding-top: 6px;
+      display: flex; justify-content: space-between;
+      font-size: 10px; color: var(--g4);
+    }
+    footer a { color: var(--g4); text-decoration: none; }
+    footer a:hover { color: var(--g3); }
+
+    @media (max-width: 900px) {
+      .two-col { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div style="display:flex;align-items:center;gap:20px;">
+      <a href="index.html" style="text-decoration:none;">
+        <span class="brand glow">SPECTER</span>
+      </a>
+      <nav class="nav">
+        <a href="#tokens" class="active">TOKENS</a>
+        <a href="#spikes">SPIKES</a>
+        <a href="#agent">AGENT LOG</a>
+        <a href="#memory">MEMORY</a>
+      </nav>
+    </div>
+    <div class="header-right">
+      CHAIN: <span>BASE (8453)</span> &nbsp;|&nbsp;
+      CYCLE: <span id="hdr-cycle">———</span> &nbsp;|&nbsp;
+      LAST: <span id="hdr-last">———</span>
+      <button class="refresh-btn" onclick="loadAll()" style="margin-left:12px;">↺ REFRESH</button>
+    </div>
+  </header>
+
+  <!-- METRICS -->
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="metric-label">TOKENS TRACKED</div>
+      <div class="metric-value" id="m-tokens">—</div>
+      <div class="metric-sub">BASE NETWORK</div>
+    </div>
+    <div class="metric-card amber" id="mc-spikes">
+      <div class="metric-label">ACTIVE SPIKES</div>
+      <div class="metric-value" id="m-spikes">—</div>
+      <div class="metric-sub">RATIO ≥ 3.0x</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">AGENT CYCLES</div>
+      <div class="metric-value" id="m-cycles">—</div>
+      <div class="metric-sub">TOTAL RUNS</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">TOP SPIKE</div>
+      <div class="metric-value" id="m-top">—</div>
+      <div class="metric-sub" id="m-top-sym">NO SIGNAL</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+
+    <!-- LEFT: TOKEN TABLE -->
+    <div>
+      <!-- SPIKES SECTION -->
+      <div class="panel" id="spikes" style="margin-bottom:8px;">
+        <div class="panel-head">
+          ⚡ SPIKE ALERTS <span id="spike-count"></span>
+          <span id="spike-ts" style="font-size:10px;"></span>
+        </div>
+        <div class="panel-body">
+          <div id="spike-table"><div class="loading">SCANNING BASE NETWORK_</div></div>
+        </div>
+      </div>
+
+      <!-- ALL TOKENS -->
+      <div class="panel" id="tokens">
+        <div class="panel-head">
+          ALL TOKENS <span id="token-count"></span>
+          <span class="dim" style="font-size:10px;">CLICK HEADER TO SORT</span>
+        </div>
+        <div class="panel-body" style="overflow-x:auto;">
+          <div id="token-table"><div class="loading">INDEXING TOKENS_</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDEBAR -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+
+      <!-- AGENT LOG -->
+      <div class="panel" id="agent">
+        <div class="panel-head">AGENT LOG <span id="log-cycle"></span></div>
+        <div class="panel-body" id="agent-log">
+          <div class="loading">LOADING PROOFS_</div>
+        </div>
+      </div>
+
+      <!-- MEMORY -->
+      <div class="panel" id="memory">
+        <div class="panel-head">AGENT MEMORY</div>
+        <div class="panel-body" id="memory-panel">
+          <div class="loading">READING MEMORY_</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>
+    <span>SPECTER // BASE NETWORK INTELLIGENCE // <a href="https://github.com/ariam2025/specter" target="_blank">GITHUB</a></span>
+    <span class="cursor">AUTONOMOUS AGENT ACTIVE</span>
+  </footer>
+
+</div>
+
+<script>
+  const REPO = 'ariam2025/specter';
+  const RAW  = `https://raw.githubusercontent.com/${REPO}/main`;
+  const API  = `https://api.github.com/repos/${REPO}`;
+
+  let allTokens = [];
+  let sortKey = 'spikeRatio';
+  let sortDir = -1;
+
+  async function loadAll() {
+    await Promise.allSettled([loadState(), loadTokens(), loadSpikes(), loadLog(), loadMemory()]);
+  }
+
+  async function loadState() {
+    try {
+      const r = await fetch(`${RAW}/memory/state.json`);
+      if (!r.ok) return;
+      const s = await r.json();
+      document.getElementById('m-cycles').textContent = s.cycle ?? '0';
+      document.getElementById('hdr-cycle').textContent = '#' + (s.cycle ?? '0');
+      if (s.lastRun) {
+        const ago = timeAgo(new Date(s.lastRun));
+        document.getElementById('hdr-last').textContent = ago;
+      }
+    } catch {}
+  }
+
+  async function loadTokens() {
+    try {
+      const r = await fetch(`${RAW}/data/tokens.json`);
+      if (!r.ok) { renderTokenTable([]); return; }
+      const data = await r.json();
+      allTokens = data.tokens || [];
+      document.getElementById('m-tokens').textContent = allTokens.length;
+      document.getElementById('token-count').textContent = `[${allTokens.length}]`;
+      renderTokenTable(allTokens);
+    } catch { renderTokenTable([]); }
+  }
+
+  async function loadSpikes() {
+    try {
+      const r = await fetch(`${RAW}/data/spikes.json`);
+      if (!r.ok) { renderSpikeTable([]); return; }
+      const data = await r.json();
+      const spikes = data.spikes || [];
+      document.getElementById('m-spikes').textContent = spikes.length;
+      document.getElementById('spike-count').textContent = spikes.length ? `[${spikes.length}]` : '';
+      if (data.timestamp)
+        document.getElementById('spike-ts').textContent = timeAgo(new Date(data.timestamp));
+      if (spikes.length) {
+        const top = spikes.reduce((a,b) => b.spikeRatio > a.spikeRatio ? b : a, spikes[0]);
+        document.getElementById('m-top').textContent = top.spikeRatio + 'x';
+        document.getElementById('m-top-sym').textContent = '$' + top.symbol;
+        document.getElementById('mc-spikes').classList.add('red');
+      }
+      renderSpikeTable(spikes);
+    } catch { renderSpikeTable([]); }
+  }
+
+  async function loadLog() {
+    try {
+      const stateR = await fetch(`${RAW}/memory/state.json`);
+      if (!stateR.ok) { renderLog([]); return; }
+      const state = await stateR.json();
+      const cycle = state.cycle || 0;
+      document.getElementById('log-cycle').textContent = `CYCLE #${cycle}`;
+
+      // Try to fetch latest proof
+      const date = new Date().toISOString().split('T')[0];
+      const proofR = await fetch(`${RAW}/proofs/${date}/cycle-${cycle - 1}.json`);
+      if (!proofR.ok) { renderLog([]); return; }
+      const proof = await proofR.json();
+      renderLog(proof);
+    } catch { renderLog([]); }
+  }
+
+  async function loadMemory() {
+    try {
+      const [selfR, focusR, learnR] = await Promise.all([
+        fetch(`${RAW}/memory/self.md`),
+        fetch(`${RAW}/memory/focus.md`),
+        fetch(`${RAW}/memory/learnings.md`),
+      ]);
+      const self    = selfR.ok    ? await selfR.text()    : '';
+      const focus   = focusR.ok   ? await focusR.text()   : '';
+      const learn   = learnR.ok   ? await learnR.text()   : '';
+
+      document.getElementById('memory-panel').innerHTML = `
+        <div class="memory-block">
+          <div class="memory-title">IDENTITY // self.md</div>
+          <div class="memory-content">${esc(self.slice(0, 400))}${self.length > 400 ? '...' : ''}</div>
+        </div>
+        <div class="memory-block">
+          <div class="memory-title">FOCUS // focus.md</div>
+          <div class="memory-content">${esc(focus.slice(0, 300))}${focus.length > 300 ? '...' : ''}</div>
+        </div>
+        <div class="memory-block">
+          <div class="memory-title">LEARNINGS // learnings.md</div>
+          <div class="memory-content">${learn.trim() ? esc(learn.slice(0, 400)) : '<span class="dim">EMPTY — FIRST CYCLE PENDING</span>'}</div>
+        </div>`;
+    } catch {}
+  }
+
+  function renderTokenTable(tokens) {
+    if (!tokens.length) {
+      document.getElementById('token-table').innerHTML = '<div class="loading dim">NO TOKEN DATA YET</div>';
+      return;
+    }
+    const sorted = [...tokens].sort((a,b) => sortDir * ((b[sortKey]||0) - (a[sortKey]||0)));
+    const cols = [
+      { key:'symbol',     label:'TOKEN' },
+      { key:'priceUsd',   label:'PRICE' },
+      { key:'mcap',       label:'MCAP' },
+      { key:'vol1h',      label:'VOL 1H' },
+      { key:'vol24h',     label:'VOL 24H' },
+      { key:'change24h',  label:'24H %' },
+      { key:'spikeRatio', label:'SPIKE' },
+    ];
+    document.getElementById('token-table').innerHTML = `
+      <table class="token-table">
+        <thead><tr>${cols.map(c =>
+          `<th onclick="resort('${c.key}')">${c.label}${sortKey===c.key?(sortDir>0?' ▲':' ▼'):''}</th>`
+        ).join('')}<th>DEX</th></tr></thead>
+        <tbody>${sorted.map(t => `
+          <tr>
+            <td class="sym"><a href="${t.url||'#'}" target="_blank">$${t.symbol}</a></td>
+            <td class="price">${fmtPrice(t.priceUsd)}</td>
+            <td class="dim">${fmtVol(t.mcap)}</td>
+            <td>${fmtVol(t.vol1h)}</td>
+            <td class="dim">${fmtVol(t.vol24h)}</td>
+            <td class="${t.change24h>=0?'up':'dn'}">${t.change24h>=0?'+':''}${(t.change24h||0).toFixed(1)}%</td>
+            <td>${spikeBadge(t.spikeRatio)}</td>
+            <td class="dim" style="font-size:10px;">${(t.dex||'').toUpperCase()}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  function renderSpikeTable(spikes) {
+    if (!spikes.length) {
+      document.getElementById('spike-table').innerHTML =
+        '<div class="dim" style="padding:10px;font-size:11px;">BATTLEFIELD STATUS: SILENT — NO ACTIVE SPIKES</div>';
+      return;
+    }
+    document.getElementById('spike-table').innerHTML = `
+      <table class="token-table">
+        <thead><tr><th>TOKEN</th><th>SPIKE</th><th>VOL 1H</th><th>VOL 24H</th><th>CHANGE</th><th>LIQ</th><th>DEX</th></tr></thead>
+        <tbody>${spikes.map(t => `
+          <tr>
+            <td class="sym"><a href="${t.url||'#'}" target="_blank">$${t.symbol}</a></td>
+            <td>${spikeBadge(t.spikeRatio)}</td>
+            <td class="amber">${fmtVol(t.vol1h)}</td>
+            <td class="dim">${fmtVol(t.vol24h)}</td>
+            <td class="${t.change24h>=0?'up':'dn'}">${t.change24h>=0?'+':''}${(t.change24h||0).toFixed(1)}%</td>
+            <td class="dim">${fmtVol(t.liqUsd)}</td>
+            <td class="dim" style="font-size:10px;">${(t.dex||'').toUpperCase()}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  function renderLog(proof) {
+    const el = document.getElementById('agent-log');
+    if (!proof || !proof.length) {
+      el.innerHTML = `
+        <div class="log-entry">
+          <div class="log-ts">——————————————</div>
+          <div class="log-msg">NO PROOF YET — AGENT HAS NOT RUN</div>
+        </div>
+        <div class="log-entry">
+          <div class="log-msg dim">WAITING FOR FIRST GITHUB ACTIONS CYCLE</div>
+        </div>`;
+      return;
+    }
+    el.innerHTML = proof.slice(-8).reverse().map(step => {
+      const content = step.response || [];
+      const text = content
+        .filter(b => b.type === 'text')
+        .map(b => b.text?.slice(0, 120))
+        .join(' ');
+      const tools = content.filter(b => b.type === 'tool_use').map(b => b.name);
+      return `
+        <div class="log-entry">
+          <div class="log-ts">STEP ${step.step ?? '?'}</div>
+          ${tools.length ? `<div class="log-msg"><span class="ok">[TOOL]</span> ${tools.join(', ')}</div>` : ''}
+          ${text ? `<div class="log-msg">${esc(text)}</div>` : ''}
+        </div>`;
+    }).join('');
+  }
+
+  function resort(key) {
+    if (sortKey === key) sortDir *= -1;
+    else { sortKey = key; sortDir = -1; }
+    renderTokenTable(allTokens);
+  }
+
+  function spikeBadge(ratio) {
+    if (!ratio) return `<span class="spike-badge spike-low">—</span>`;
+    if (ratio >= 5) return `<span class="spike-badge spike-hot">⚡ ${ratio}x</span>`;
+    if (ratio >= 3) return `<span class="spike-badge spike-warn">▸ ${ratio}x</span>`;
+    return `<span class="spike-badge spike-low">${ratio}x</span>`;
+  }
+
+  function fmtVol(n) {
+    if (!n) return '—';
+    if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+    if (n >= 1e3) return '$' + (n/1e3).toFixed(1) + 'K';
+    return '$' + Math.round(n);
+  }
+
+  function fmtPrice(n) {
+    if (!n) return '—';
+    if (n < 0.0001) return '$' + n.toExponential(2);
+    if (n < 1)      return '$' + n.toFixed(6);
+    return '$' + n.toFixed(4);
+  }
+
+  function timeAgo(date) {
+    const diff = Math.floor((Date.now() - date) / 1000);
+    if (diff < 60)   return diff + 's ago';
+    if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+    return Math.floor(diff/3600) + 'h ago';
+  }
+
+  function esc(s) {
+    return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  loadAll();
+  setInterval(loadAll, 5 * 60 * 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+name: SPECTER Cycle
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+  issues:
+    types: [opened]
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run SPECTER
+        env:
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY:  ${{ github.repository }}
+        run: node agents/core/run.js
+
+      - name: Commit results
+        run: |
+          git config user.name  "specter[bot]"
+          git config user.email "specter@users.noreply.github.com"
+          git add data/ memory/ proofs/
+          git diff --staged --quiet && echo "Nothing to commit" && exit 0
+          CYCLE=$(node -e "const s=require('./memory/state.json'); console.log(s.cycle)")
+          git commit -m "[specter] cycle #${CYCLE} — $(date -u '+%Y-%m-%d %H:%M') UTC"
+          git push

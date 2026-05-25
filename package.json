@@ -1,0 +1,18 @@
+{
+  "name": "specter",
+  "version": "1.0.0",
+  "description": "Autonomous intelligence agents scanning Base Network 24/7",
+  "type": "module",
+  "main": "agents/core/run.js",
+  "scripts": {
+    "start": "node agents/core/run.js",
+    "watcher": "node agents/watcher/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.34.0",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
