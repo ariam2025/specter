@@ -29,7 +29,8 @@ window.SpectorWallet = (function () {
     tokenLive:  SPECTER_TOKEN !== '0x0000000000000000000000000000000000000000',
   };
 
-  let _onChange = null;
+  let _onChange       = null;
+  let _listenersAdded = false;
 
   function getTier(bal) {
     for (const t of TIERS) {
@@ -113,16 +114,35 @@ window.SpectorWallet = (function () {
 
     _onChange && _onChange(state);
 
-    // Listen for account / chain changes
-    window.ethereum.on('accountsChanged', async (accs) => {
-      if (!accs.length) { disconnect(); return; }
-      state.address = accs[0];
-      state.balance = await readBalance(state.address);
-      state.tier    = getTier(state.balance);
-      _onChange && _onChange(state);
-    });
+    // Register listeners only once to avoid duplicates
+    if (!_listenersAdded) {
+      _listenersAdded = true;
 
-    window.ethereum.on('chainChanged', () => window.location.reload());
+      window.ethereum.on('accountsChanged', async (accs) => {
+        if (!accs.length) { disconnect(); return; }
+        state.address = accs[0];
+        state.balance = await readBalance(state.address);
+        state.tier    = getTier(state.balance);
+        _onChange && _onChange(state);
+      });
+
+      // On chain change: update flag instead of reloading (avoids race condition on initial connect)
+      window.ethereum.on('chainChanged', async (newChainId) => {
+        const onBase = newChainId === BASE_CHAIN_ID;
+        state.chainOk = onBase;
+        if (state.connected) {
+          if (!onBase) {
+            // User switched away from Base — reload to reset cleanly
+            window.location.reload();
+          } else {
+            // Switched back to Base — refresh balance silently
+            state.balance = await readBalance(state.address);
+            state.tier    = getTier(state.balance);
+            _onChange && _onChange(state);
+          }
+        }
+      });
+    }
   }
 
   function disconnect() {
