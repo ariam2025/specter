@@ -1029,41 +1029,40 @@
   setInterval(loadAll, 5 * 60 * 1000);
 
   // ── WALLET ──────────────────────────────────────
-  async function walletAction() {
+  function walletAction() {
     const s = SpectorWallet.getState();
     if (s.connected) {
       SpectorWallet.disconnect();
     } else {
-      const btn = document.getElementById('wallet-btn');
-      btn.disabled    = true;
-      btn.textContent = 'CONNECTING...';
-      await SpectorWallet.connect();
-      btn.disabled = false;
+      SpectorWallet.connect();
     }
   }
 
   function applyTier(s) {
     const btn   = document.getElementById('wallet-btn');
     const badge = document.getElementById('tier-badge');
+    if (!btn) return;
 
-    // Header button
     if (s.connecting) {
       btn.textContent = 'CONNECTING...';
       btn.disabled    = true;
       return;
     }
+
     btn.disabled = false;
     if (s.connected) {
       btn.textContent = s.address.slice(0,6) + '...' + s.address.slice(-4);
       btn.classList.add('connected');
-      badge.style.display     = 'inline-block';
-      badge.textContent       = s.tier.label;
-      badge.style.color       = s.tier.color;
-      badge.style.borderColor = s.tier.color;
+      if (badge) {
+        badge.style.display     = 'inline-block';
+        badge.textContent       = s.tier.label;
+        badge.style.color       = s.tier.color;
+        badge.style.borderColor = s.tier.color;
+      }
     } else {
       btn.textContent = 'CONNECT WALLET';
       btn.classList.remove('connected');
-      badge.style.display = 'none';
+      if (badge) badge.style.display = 'none';
     }
 
     // Highlight active tier in panel

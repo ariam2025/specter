@@ -90,42 +90,73 @@ window.SpectorWallet = (function () {
     }
   }
 
+  function _reset() {
+    state.connected = false;
+    state.address   = null;
+    state.balance   = 0;
+    state.tier      = TIERS[3];
+    state.chainOk   = false;
+    _onChange && _onChange(state);
+  }
+
   async function connect() {
     if (!window.ethereum) {
       alert('No wallet detected. Install MetaMask or Coinbase Wallet.');
       return;
     }
 
-    // Signal "connecting" so UI can show feedback
     _onChange && _onChange({ ...state, connecting: true });
 
     try {
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      if (!accounts.length) { _onChange && _onChange(state); return; }
+      // Step 1 — request accounts (opens MetaMask popup)
+      let accounts;
+      try {
+        accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      } catch (e) {
+        _reset(); return; // user rejected or popup blocked
+      }
+      if (!accounts || !accounts.length) { _reset(); return; }
 
       state.address   = accounts[0];
       state.connected = true;
 
-      // Check / switch network
-      const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+      // Step 2 — check chain, switch if needed (skip await to avoid hang)
+      let chainId = await window.ethereum.request({ method: 'eth_chainId' });
+      if (chainId !== BASE_CHAIN_ID) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: BASE_CHAIN_ID }],
+          });
+        } catch (switchErr) {
+          if (switchErr.code === 4902) {
+            // Chain not added — add it
+            try {
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: BASE_CHAIN_ID, chainName: 'Base',
+                  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+                  rpcUrls: [BASE_RPC],
+                  blockExplorerUrls: ['https://basescan.org'],
+                }],
+              });
+            } catch { /* user rejected add — continue anyway */ }
+          }
+          // user rejected switch — continue anyway, just mark chainOk false
+        }
+      }
+      chainId = await window.ethereum.request({ method: 'eth_chainId' });
       state.chainOk = chainId === BASE_CHAIN_ID;
-      if (!state.chainOk) await switchToBase();
-      state.chainOk = true;
 
-      // Read balance
+      // Step 3 — read balance
       state.balance = await readBalance(state.address);
       state.tier    = getTier(state.balance);
 
       _onChange && _onChange(state);
     } catch (err) {
-      // User rejected or unexpected error — reset and notify
-      state.connected = false;
-      state.address   = null;
-      _onChange && _onChange(state);
-      if (err.code !== 4001) {
-        // 4001 = user rejected — no need to alert
-        console.error('[SpectorWallet] connect error:', err);
-      }
+      console.error('[SpectorWallet]', err);
+      _reset();
     }
 
     // Register listeners only once to avoid duplicates
