@@ -1,8 +1,9 @@
 // SPECTER Wallet — Base Network
-// Update SPECTER_TOKEN after contract deploy
+// Token address is read from config.js (window.SPECTER_CONFIG)
 window.SpectorWallet = (function () {
 
-  const SPECTER_TOKEN  = '0x0000000000000000000000000000000000000000'; // <- replace after deploy
+  const _cfg           = (window.SPECTER_CONFIG || {});
+  const SPECTER_TOKEN  = _cfg?.specterToken?.address || '0x0000000000000000000000000000000000000000';
   const BASE_CHAIN_ID  = '0x2105'; // 8453
   const BASE_RPC       = 'https://mainnet.base.org';
   const TOKEN_DECIMALS = 18;
