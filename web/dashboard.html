@@ -8,6 +8,7 @@
   <link rel="icon" type="image/png" href="favicon.png">
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
+  <script src="config.js"></script>
   <script src="wallet.js"></script>
   <style>
     :root {
@@ -676,7 +677,7 @@
         <input class="stake-input" id="stake-amount" type="number" placeholder="Amount $SPECTER" min="1" step="1" />
         <button class="stake-btn" id="stake-stake-btn" onclick="executeStake()">STAKE</button>
         <button class="stake-btn" id="stake-unstake-btn" onclick="executeUnstake()">UNSTAKE</button>
-        <button class="stake-btn claim" id="stake-claim-btn" onclick="executeClaim()">CLAIM REWARDS</button>
+        <button class="stake-btn claim" id="stake-claim-btn" onclick="executeClaim()">WITHDRAW ALL</button>
       </div>
       <div class="stake-status" id="stake-status"></div>
     </div>
@@ -697,10 +698,13 @@
   // Always bypass CDN cache — raw.githubusercontent.com can serve stale content
   const fetchRaw = (path) => fetch(`${RAW}/${path}?_=${Date.now()}`, { cache: 'no-store' });
 
-  // ── CONTRACT ADDRESSES — fill after deployment on Base ──────────
-  const SPECTER_TOKEN_ADDR = '';   // TODO: ERC-20 $SPECTER contract address
-  const TREASURY_ADDRESS   = '';   // TODO: treasury / burn recipient address
-  const STAKING_CONTRACT   = '';   // TODO: staking contract address
+  // ── ON-CHAIN CONFIG (Base mainnet) ──────────────────────────────
+  const CFG = window.SPECTER_CONFIG || {};
+  const SPECTER_TOKEN_ADDR = CFG?.specterToken?.address || '';      // optional project token
+  const TREASURY_ADDRESS   = CFG?.specterToken?.treasuryAddress || ''; // optional
+  const STAKING_CONTRACT   = CFG?.stakingTreasuryBurn?.address || '';
+  const STAKING_TOKEN_ADDR = CFG?.stakingTreasuryBurn?.stakingToken || '';
+  const BASESCAN           = CFG?.blockExplorer || 'https://basescan.org';
 
   let allTokens = [];
   let sortKey = 'spikeRatio';
@@ -1599,13 +1603,16 @@
   }
 
   // ── STAKING ────────────────────────────────────────
+  // StakingTreasuryBurn ABI (minimal)
   const STAKING_ABI = [
     'function stake(uint256 amount)',
     'function withdraw(uint256 amount)',
-    'function getReward()',
-    'function balanceOf(address) view returns (uint256)',
-    'function earned(address) view returns (uint256)',
-    'function totalSupply() view returns (uint256)',
+    'function withdrawAll()',
+    'function stakedBalance(address) view returns (uint256)',
+    'function totalStaked() view returns (uint256)',
+    'function burnBps() view returns (uint16)',
+    'function burnAddress() view returns (address)',
+    'function stakingToken() view returns (address)',
   ];
 
   async function loadStaking() {
@@ -1633,24 +1640,23 @@
       const user    = await signer.getAddress();
       const staking = new ethers.Contract(STAKING_CONTRACT, STAKING_ABI, provider);
 
-      const [staked, rewards, total] = await Promise.all([
-        staking.balanceOf(user).catch(() => 0n),
-        staking.earned(user).catch(() => 0n),
-        staking.totalSupply().catch(() => 0n),
+      const [staked, total] = await Promise.all([
+        staking.stakedBalance(user).catch(() => 0n),
+        staking.totalStaked().catch(() => 0n),
       ]);
 
       const fmt = (bn) => Number(ethers.formatUnits(bn, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
       document.getElementById('stake-your').textContent    = fmt(staked);
-      document.getElementById('stake-rewards').textContent = fmt(rewards);
+      document.getElementById('stake-rewards').textContent = '—';
       document.getElementById('stake-total').textContent   = fmt(total);
-      setStatus('');
+      setStatus(`CONTRACT: ${STAKING_CONTRACT.slice(0, 8)}…${STAKING_CONTRACT.slice(-6)} · View: ${BASESCAN}/address/${STAKING_CONTRACT}#code`, 'var(--g4)');
       allBtns.forEach(id => { document.getElementById(id).disabled = false; });
     } catch { setStatus('Failed to load staking data.', 'var(--red)'); }
   }
 
   async function executeStake()   { await _stakeAction('stake',   'STAKING');   }
   async function executeUnstake() { await _stakeAction('unstake', 'UNSTAKING'); }
-  async function executeClaim()   { await _stakeAction('claim',   'CLAIMING');  }
+  async function executeClaim()   { await _stakeAction('withdrawAll', 'WITHDRAWING ALL'); }
 
   async function _stakeAction(action, label) {
     const statusEl = document.getElementById('stake-status');
@@ -1680,11 +1686,12 @@
 
       if (action === 'stake') {
         const amountBN  = ethers.parseUnits(amount.toString(), 18);
-        const specter   = new ethers.Contract(SPECTER_TOKEN_ADDR, SPECTER_ERC20_ABI_FULL, signer);
-        const allowance = await specter.allowance(user, STAKING_CONTRACT);
+        if (!STAKING_TOKEN_ADDR) throw new Error('Staking token not configured');
+        const token     = new ethers.Contract(STAKING_TOKEN_ADDR, SPECTER_ERC20_ABI_FULL, signer);
+        const allowance = await token.allowance(user, STAKING_CONTRACT);
         if (allowance < amountBN) {
-          setStatus('Approve $SPECTER spend in MetaMask…', 'var(--g2)');
-          const approveTx = await specter.approve(STAKING_CONTRACT, amountBN);
+          setStatus('Approve staking token spend in MetaMask…', 'var(--g2)');
+          const approveTx = await token.approve(STAKING_CONTRACT, amountBN);
           await approveTx.wait();
         }
         setStatus('Confirm stake in MetaMask…', 'var(--g2)');
@@ -1694,14 +1701,14 @@
         setStatus('Confirm unstake in MetaMask…', 'var(--g2)');
         tx = await staking.withdraw(amountBN);
       } else {
-        setStatus('Confirm claim in MetaMask…', 'var(--g2)');
-        tx = await staking.getReward();
+        setStatus('Confirm withdrawAll in MetaMask…', 'var(--g2)');
+        tx = await staking.withdrawAll();
       }
 
       setStatus('Confirming transaction…', 'var(--g2)');
       const receipt = await tx.wait();
       if (receipt.status === 1) {
-        setStatus(`✓ ${label} confirmed!`, '#00ff41');
+        setStatus(`✓ ${label} confirmed! View: ${BASESCAN}/tx/${tx.hash}`, '#00ff41');
         document.getElementById('stake-amount').value = '';
         await loadStaking();
       } else {

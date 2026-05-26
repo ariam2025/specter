@@ -6,13 +6,22 @@
   "main": "agents/core/run.js",
   "scripts": {
     "start": "node agents/core/run.js",
-    "watcher": "node agents/watcher/index.js"
+    "watcher": "node agents/watcher/index.js",
+    "hardhat": "hardhat",
+    "compile": "hardhat compile",
+    "test": "hardhat test"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.34.0",
+    "@anthropic-ai/sdk": "^0.98.0",
+    "@openzeppelin/contracts": "^5.6.1",
+    "dotenv": "^17.4.2",
     "node-fetch": "^3.3.2"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.2",
+    "hardhat": "^2.28.6"
   }
 }
