@@ -92,27 +92,41 @@ window.SpectorWallet = (function () {
 
   async function connect() {
     if (!window.ethereum) {
-      alert('No wallet detected. Install MetaMask or another Web3 wallet.');
+      alert('No wallet detected. Install MetaMask or Coinbase Wallet.');
       return;
     }
 
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    if (!accounts.length) return;
+    // Signal "connecting" so UI can show feedback
+    _onChange && _onChange({ ...state, connecting: true });
 
-    state.address   = accounts[0];
-    state.connected = true;
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      if (!accounts.length) { _onChange && _onChange(state); return; }
 
-    // Check / switch network
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    state.chainOk = chainId === BASE_CHAIN_ID;
-    if (!state.chainOk) await switchToBase();
-    state.chainOk = true;
+      state.address   = accounts[0];
+      state.connected = true;
 
-    // Read balance
-    state.balance = await readBalance(state.address);
-    state.tier    = getTier(state.balance);
+      // Check / switch network
+      const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+      state.chainOk = chainId === BASE_CHAIN_ID;
+      if (!state.chainOk) await switchToBase();
+      state.chainOk = true;
 
-    _onChange && _onChange(state);
+      // Read balance
+      state.balance = await readBalance(state.address);
+      state.tier    = getTier(state.balance);
+
+      _onChange && _onChange(state);
+    } catch (err) {
+      // User rejected or unexpected error — reset and notify
+      state.connected = false;
+      state.address   = null;
+      _onChange && _onChange(state);
+      if (err.code !== 4001) {
+        // 4001 = user rejected — no need to alert
+        console.error('[SpectorWallet] connect error:', err);
+      }
+    }
 
     // Register listeners only once to avoid duplicates
     if (!_listenersAdded) {

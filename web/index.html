@@ -876,15 +876,28 @@
   runBoot();
 
   // WALLET
-  function walletAction() {
+  async function walletAction() {
     const s = SpectorWallet.getState();
-    if (s.connected) SpectorWallet.disconnect();
-    else SpectorWallet.connect();
+    if (s.connected) {
+      SpectorWallet.disconnect();
+    } else {
+      const btn = document.getElementById('wallet-btn');
+      btn.disabled    = true;
+      btn.textContent = 'CONNECTING...';
+      await SpectorWallet.connect();
+      btn.disabled = false;
+    }
   }
 
   SpectorWallet.onChange(function(s) {
     const btn   = document.getElementById('wallet-btn');
     const badge = document.getElementById('tier-badge');
+    if (s.connecting) {
+      btn.textContent = 'CONNECTING...';
+      btn.disabled    = true;
+      return;
+    }
+    btn.disabled = false;
     if (s.connected) {
       btn.textContent = s.address.slice(0,6) + '...' + s.address.slice(-4);
       btn.classList.add('connected');
